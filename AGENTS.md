@@ -27,8 +27,8 @@ These non-negotiable rules govern all development, testing, and AI assistant act
 
 ## 4. Optional Integrations Boundaries
 - **OpenAI & LLM Explanations:** LLM interpretation is strictly opt-in (`ENABLE_LLM_EXPLANATIONS=true` and `OPENAI_API_KEY`). The LLM generates summary context and future growth recommendations only; it cannot alter deterministic statuses, invent citations, or claim skills without proof.
-- **Telegram Bot Pairing:** Pairing uses short-lived hashed one-time tokens. Webhook alerts (`POST /api/integrations/telegram/webhook`) contain only commit SHAs, repo links, and fit score summaries—never source code excerpts, evidence snippets, or private keys.
-- **Job Search Discovery:** JSearch queries are executed server-side. Candidates prefill a review step; the direct posting URL and description must still be saved explicitly.
+- **Telegram Bot Pairing:** Pairing uses short-lived hashed one-time tokens. Webhook alerts (`POST /api/integrations/telegram/webhook`) contain only commit SHAs, repo links, and fit score summaries—never source code excerpts, evidence snippets, or private keys. The UI and API do not gate bot pairing or repository connection behind mandatory job creation.
+- **Job Search Discovery & Source URL Flexibility:** Real-time job discovery runs server-side via Jooble (`JOOBLE_API_KEY`) and JSearch (`JSEARCH_API_KEY`) with concurrent fallback and deduplication. Source posting URLs are optional for manual entry and real-time roles (local benchmark references are auto-assigned when omitted). Candidates prefill the job form for immediate review and assessment.
 
 ---
 

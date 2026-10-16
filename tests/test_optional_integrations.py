@@ -16,7 +16,7 @@ from backend.storage import SQLiteStore
 from backend.telegram import TelegramService
 
 
-from tests.conftest import make_fake_inspection, make_test_settings
+from tests.conftest import FakeAsyncGitHubClient, INITIAL_SHA, make_fake_inspection, make_test_settings
 
 
 def _settings(tmp_path, **overrides: Any) -> Settings:
@@ -267,3 +267,67 @@ def test_telegram_pairing_hashes_code_and_notifies_once_per_snapshot(tmp_path) -
     assert "Proof Delta" in alert_text
     assert "src/app.py" not in alert_text
     assert "telegram-server-secret" not in alert_text
+
+
+def test_jooble_keeps_key_server_side_and_cleans_snippets(tmp_path) -> None:
+    received: dict[str, Any] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        received["url"] = str(request.url)
+        received["headers"] = dict(request.headers)
+        return httpx.Response(
+            200,
+            json={
+                "totalJobs": 42,
+                "jobs": [
+                    {
+                        "title": "Backend Python Developer",
+                        "company": "Tech Corp",
+                        "location": "Pune",
+                        "snippet": "Need <b>Python</b> and <b>FastAPI</b> experience.&nbsp;",
+                        "link": "https://in.jooble.org/jdp/123456",
+                        "source": "hirist.com",
+                        "type": "Full-time",
+                        "updated": "2026-10-15T00:00:00Z",
+                    }
+                ],
+            },
+        )
+
+    secret = "jooble-server-secret-key"
+    client = JSearchClient(
+        _settings(tmp_path, jooble_api_key=secret), transport=httpx.MockTransport(handler)
+    )
+    result = asyncio.run(client.search(query="python developer", country="in", location="Pune"))
+
+    assert secret in received["url"]  # Key used server-side in API request URL
+    assert result["provider"] == "Jooble"
+    assert len(result["results"]) == 1
+    item = result["results"][0]
+    assert item["title"] == "Backend Python Developer"
+    assert item["company"] == "Tech Corp"
+    assert item["posting_url"] == "https://in.jooble.org/jdp/123456"
+    assert "<b>" not in item["description"]  # HTML tags cleaned
+    assert "&nbsp;" not in item["description"]
+    assert secret not in json.dumps(result)  # Never leaked in response payload
+
+
+def test_connect_repository_without_job_selection_auto_benchmarks(tmp_path) -> None:
+    from fastapi.testclient import TestClient
+    from tests.conftest import create_test_app, make_fake_inspection
+
+    initial = make_fake_inspection(source="import fastapi\napp = fastapi.FastAPI()\n")
+    fake_github = FakeAsyncGitHubClient({INITIAL_SHA: initial})
+    app = create_test_app(_settings(tmp_path), fake_github)
+
+    with TestClient(app) as client:
+        # Connect repository without selecting or creating a job first
+        response = client.post(
+            "/api/repositories",
+            json={"repository_url": "https://github.com/demo/portfolio"},
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["repository"]["name"] == "portfolio"
+        assert data["snapshot"]["assessment"]["fit_score"]["value"] >= 0
+

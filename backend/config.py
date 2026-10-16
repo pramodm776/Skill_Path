@@ -67,6 +67,9 @@ class Settings:
     telegram_notifications_enabled: bool
     azure_key_vault_url: str | None
     applicationinsights_connection_string: str | None
+    jooble_api_key: str | None = None
+    jooble_api_url: str = "https://in.jooble.org/api"
+    jooble_timeout_seconds: int = 15
     public_base_url: str | None = None
     telegram_bot_username: str | None = None
     telegram_pairing_ttl_seconds: int = 600
@@ -111,6 +114,11 @@ class Settings:
             ).rstrip("/"),
             jsearch_timeout_seconds=_as_int(
                 os.getenv("JSEARCH_TIMEOUT_SECONDS"), default=30, minimum=3
+            ),
+            jooble_api_key=os.getenv("JOOBLE_API_KEY") or None,
+            jooble_api_url=os.getenv("JOOBLE_API_URL", "https://in.jooble.org/api").rstrip("/"),
+            jooble_timeout_seconds=_as_int(
+                os.getenv("JOOBLE_TIMEOUT_SECONDS"), default=15, minimum=3
             ),
             telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
             telegram_webhook_secret=os.getenv("TELEGRAM_WEBHOOK_SECRET") or None,

@@ -119,7 +119,9 @@ OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4.1-mini
 ENABLE_LLM_EXPLANATIONS=false
 
-# Optional: Live Job Search via RapidAPI
+# Optional: Live Job Search via Jooble & RapidAPI/JSearch
+JOOBLE_API_KEY=57182337-177a-4e64-ae00-45ea25742460
+JOOBLE_API_URL=https://in.jooble.org/api
 JSEARCH_API_KEY=
 JSEARCH_API_URL=https://jsearch.p.rapidapi.com
 
@@ -156,7 +158,7 @@ Interactive Swagger API documentation is available at **[http://127.0.0.1:8000/d
 
 Run the automated test suite and merge gate checks:
 ```powershell
-# Run 13 passing unit and integration tests
+# Run 15 passing unit and integration tests
 pytest -q
 
 # Run Python compilation check
