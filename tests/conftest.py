@@ -141,6 +141,21 @@ class FakeAsyncGitHubClient:
         self.compare_calls.append((previous_sha, current_sha))
         return deepcopy(self.comparisons.get((previous_sha, current_sha), []))
 
+    async def list_user_repositories(self, username: str) -> list[dict[str, Any]]:
+        return [
+            {
+                "name": "portfolio",
+                "full_name": f"{username}/portfolio",
+                "html_url": f"https://github.com/{username}/portfolio",
+                "description": "Demo portfolio repo",
+                "language": "Python",
+                "updated_at": "2026-10-16T00:00:00Z",
+                "stars": 5,
+                "fork": False,
+            }
+        ]
+
+
 
 class FakeJobSearchClient:
     """Server-side discovery double for testing the API route without a provider key."""

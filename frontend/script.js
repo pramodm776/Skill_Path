@@ -47,6 +47,9 @@
     disconnectRepositoryButton: byId("disconnect-repository-button"),
     repositoryHelp: byId("repository-help"),
     repositoryFeedback: byId("repository-form-feedback"),
+    userReposDrawer: byId("user-repos-drawer"),
+    userReposTitle: byId("user-repos-title"),
+    userReposList: byId("user-repos-list"),
     scopeNotice: byId("scope-notice"),
     contextLinks: byId("context-links"),
     fitScore: byId("fit-score"),
@@ -844,6 +847,10 @@
       state.repository = payload.repository;
       state.snapshot = payload.snapshot;
       state.events = [];
+      if (elements.userReposDrawer) elements.userReposDrawer.hidden = true;
+      if (payload.repository?.repository_url) {
+        elements.repositoryUrl.value = payload.repository.repository_url;
+      }
       await loadOverview(state.repository.id);
       await loadSavedJobs();
       setFeedback(elements.repositoryFeedback, payload.message || "Repository connected and assessed.", "success");
@@ -854,6 +861,56 @@
       toast(error.message, "error");
     } finally {
       setButtonLoading(elements.connectRepositoryButton, false);
+    }
+  }
+
+  let profileLookupTimer = null;
+  async function checkForProfileUrl() {
+    const val = elements.repositoryUrl.value.trim();
+    if (!val) {
+      if (elements.userReposDrawer) elements.userReposDrawer.hidden = true;
+      return;
+    }
+    const profileMatch =
+      val.match(/^https?:\/\/github\.com\/([a-zA-Z0-9-]+)\/?$/i) ||
+      val.match(/^@([a-zA-Z0-9-]+)$/i);
+    if (!profileMatch) {
+      if (elements.userReposDrawer) elements.userReposDrawer.hidden = true;
+      return;
+    }
+    const username = profileMatch[1];
+    if (elements.userReposDrawer) {
+      elements.userReposDrawer.hidden = false;
+      elements.userReposTitle.textContent = `Fetching public repositories for @${username}...`;
+      clear(elements.userReposList);
+    }
+    try {
+      const payload = await api(`/api/github/users/${username}/repositories`);
+      const repos = Array.isArray(payload.repositories) ? payload.repositories : [];
+      if (!repos.length) {
+        if (elements.userReposTitle) elements.userReposTitle.textContent = `No public repositories found for @${username}.`;
+        return;
+      }
+      if (elements.userReposTitle) {
+        elements.userReposTitle.textContent = `📁 Public repositories for @${username} (${repos.length} found) — Click to select:`;
+      }
+      clear(elements.userReposList);
+      repos.forEach((r) => {
+        const chip = make("button", "user-repo-chip", r.name);
+        chip.type = "button";
+        if (r.language) {
+          const langSpan = make("span", "repo-lang", `(${r.language})`);
+          chip.append(langSpan);
+        }
+        chip.addEventListener("click", () => {
+          elements.repositoryUrl.value = r.html_url;
+          elements.userReposDrawer.hidden = true;
+          submitRepository(new Event("submit"));
+        });
+        elements.userReposList.append(chip);
+      });
+    } catch (err) {
+      if (elements.userReposTitle) elements.userReposTitle.textContent = `Could not fetch repositories for @${username}: ${err.message}`;
     }
   }
 
@@ -1037,6 +1094,11 @@
     if (Number.isInteger(index)) useJobSearchResult(index);
   });
   elements.repositoryForm.addEventListener("submit", submitRepository);
+  elements.repositoryUrl.addEventListener("input", () => {
+    clearTimeout(profileLookupTimer);
+    profileLookupTimer = setTimeout(checkForProfileUrl, 350);
+  });
+  elements.repositoryUrl.addEventListener("change", checkForProfileUrl);
   elements.checkMonitorButton.addEventListener("click", checkMonitor);
   elements.refreshHistoryButton.addEventListener("click", async () => {
     try {

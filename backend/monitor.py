@@ -47,6 +47,11 @@ class MonitorService:
             await asyncio.sleep(self.poll_interval_seconds)
 
     async def check_all(self) -> None:
+        if self.telegram_service and hasattr(self.telegram_service, "poll_updates"):
+            try:
+                await self.telegram_service.poll_updates()
+            except Exception:
+                pass
         # Deliberately sequential: it bounds GitHub requests and keeps a 24-hour MVP predictable.
         for repository in self.store.monitored_repositories():
             try:
@@ -183,6 +188,11 @@ class MonitorService:
                 return {"event": "monitor_disabled", "repository_id": repository_id, "message": "Monitoring is disabled."}
 
             self.store.record_check(repository_id, state="checking")
+            if self.telegram_service and hasattr(self.telegram_service, "poll_updates"):
+                try:
+                    await self.telegram_service.poll_updates()
+                except Exception:
+                    pass
             try:
                 latest = await self.github_client.latest_commit(repository)
                 latest_sha = latest.get("sha") if isinstance(latest, dict) else None

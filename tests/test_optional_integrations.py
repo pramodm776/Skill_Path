@@ -331,3 +331,21 @@ def test_connect_repository_without_job_selection_auto_benchmarks(tmp_path) -> N
         assert data["repository"]["name"] == "portfolio"
         assert data["snapshot"]["assessment"]["fit_score"]["value"] >= 0
 
+        # Profile URL auto-resolves public repositories
+        profile_response = client.get("/api/github/users/demo/repositories")
+        assert profile_response.status_code == 200
+        repos_data = profile_response.json()
+        assert repos_data["username"] == "demo"
+        assert len(repos_data["repositories"]) == 1
+        assert repos_data["repositories"][0]["name"] == "portfolio"
+
+        # Direct connection with profile URL resolves the best repository
+        from_profile_response = client.post(
+            "/api/repositories",
+            json={"repository_url": "https://github.com/demo/"},
+        )
+        assert from_profile_response.status_code == 201
+        assert from_profile_response.json()["repository"]["name"] == "portfolio"
+        assert "Profile @demo resolved" in from_profile_response.json()["message"]
+
+

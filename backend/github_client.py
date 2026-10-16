@@ -557,3 +557,42 @@ class GitHubClient:
                 item["previous_path"] = file["previous_filename"]
             changes.append(item)
         return changes
+
+    async def list_user_repositories(self, username: str) -> list[dict[str, Any]]:
+        clean_user = username.strip().lstrip("@")
+        if not re.match(r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$", clean_user):
+            raise GitHubError("invalid_username", "Provide a valid GitHub username.", 422)
+        timeout = httpx.Timeout(self.settings.github_timeout_seconds)
+        async with httpx.AsyncClient(
+            base_url=self.settings.github_api_url,
+            headers=self._headers(),
+            timeout=timeout,
+            follow_redirects=False,
+        ) as client:
+            items = await self._request_json(
+                client,
+                "GET",
+                f"/users/{quote(clean_user, safe='')}/repos",
+                params={"sort": "updated", "per_page": 30, "type": "public"},
+            )
+        if not isinstance(items, list):
+            return []
+        repos: list[dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("name")
+            html_url = item.get("html_url")
+            if not isinstance(name, str) or not isinstance(html_url, str):
+                continue
+            repos.append({
+                "name": name,
+                "full_name": item.get("full_name") or f"{clean_user}/{name}",
+                "html_url": html_url,
+                "description": item.get("description") or "",
+                "language": item.get("language") or "",
+                "updated_at": item.get("updated_at") or "",
+                "stars": item.get("stargazers_count", 0),
+                "fork": bool(item.get("fork")),
+            })
+        return repos

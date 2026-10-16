@@ -10,7 +10,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 import time
 from typing import Any, Optional
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import httpx
 from fastapi import FastAPI, Header, Request
@@ -393,6 +393,11 @@ def create_app(
             repositories = store.list_repositories()
         return {"repositories": [_public_repository(repo) for repo in repositories]}
 
+    @app.get("/api/github/users/{username}/repositories")
+    async def get_user_repositories(username: str) -> dict[str, Any]:
+        repos = await github_client.list_user_repositories(username)
+        return {"username": username.strip().lstrip("@"), "repositories": repos}
+
     @app.delete("/api/repositories/{repository_id}")
     async def delete_repository(repository_id: int) -> dict[str, Any]:
         if not store.get_repository(repository_id):
@@ -428,7 +433,27 @@ def create_app(
                 "No supported skills were extracted from this job description. Add explicit requirements before assessment.",
                 422,
             )
-        inspection = await github_client.inspect_repository(payload.repository_url)
+
+        raw_url = payload.repository_url.strip()
+        parsed_url = urlparse(raw_url)
+        path_parts = [unquote(p) for p in parsed_url.path.strip("/").split("/") if p]
+        target_repo_url = raw_url
+        auto_selected_name: str | None = None
+
+        if parsed_url.hostname == "github.com" and len(path_parts) == 1:
+            username = path_parts[0]
+            user_repos = await github_client.list_user_repositories(username)
+            if not user_repos:
+                raise AppError("no_public_repositories", f"No public repositories found for GitHub user '{username}'.", 404)
+            chosen = user_repos[0]
+            for r in user_repos:
+                if not r.get("fork"):
+                    chosen = r
+                    break
+            target_repo_url = chosen["html_url"]
+            auto_selected_name = chosen["name"]
+
+        inspection = await github_client.inspect_repository(target_repo_url)
         repository_url = inspection.get("repository_url")
         owner = inspection.get("owner")
         name = inspection.get("name")
@@ -475,9 +500,15 @@ def create_app(
             "snapshot": snapshot,
             "created_repository": created_repository,
             "created_snapshot": created_snapshot,
-            "message": "Repository connected and initial evidence assessment completed."
-            if created_repository
-            else "Repository was already connected; the current revision was checked without duplicating an assessment.",
+            "message": (
+                f"Profile @{path_parts[0]} resolved. Connected and assessed repository '{auto_selected_name}'."
+                if auto_selected_name
+                else (
+                    "Repository connected and initial evidence assessment completed."
+                    if created_repository
+                    else "Repository was already connected; current revision checked."
+                )
+            ),
         }
 
     @app.get("/api/repositories/{repository_id}/overview")

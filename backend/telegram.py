@@ -58,7 +58,7 @@ class TelegramService:
         configured = bool(
             self.settings.telegram_notifications_enabled
             and self.settings.telegram_bot_token
-            and self.settings.telegram_webhook_secret
+            and (self.settings.telegram_webhook_secret or self.can_poll())
         )
         if not configured:
             return {
@@ -257,3 +257,47 @@ class TelegramService:
             error_message=None,
         )
         return {"sent": True}
+
+    def can_poll(self) -> bool:
+        return bool(
+            self.settings.telegram_notifications_enabled
+            and self.settings.telegram_bot_token
+            and not self.settings.public_base_url
+        )
+
+    async def poll_updates(self) -> int:
+        if not self.can_poll():
+            return 0
+        token = self.settings.telegram_bot_token
+        try:
+            async with httpx.AsyncClient(
+                base_url=self.settings.telegram_api_url,
+                timeout=httpx.Timeout(10),
+                follow_redirects=False,
+                transport=self.transport,
+            ) as client:
+                response = await client.get(
+                    f"/bot{token}/getUpdates",
+                    params={"limit": 10, "timeout": 0},
+                )
+                if response.status_code != 200:
+                    return 0
+                payload = response.json()
+                updates = payload.get("result", [])
+                if not isinstance(updates, list) or not updates:
+                    return 0
+                max_update_id = 0
+                for update in updates:
+                    update_id = update.get("update_id")
+                    if isinstance(update_id, int):
+                        max_update_id = max(max_update_id, update_id)
+                    await self.handle_webhook_update(update)
+                if max_update_id > 0:
+                    await client.get(
+                        f"/bot{token}/getUpdates",
+                        params={"offset": max_update_id + 1, "limit": 1, "timeout": 0},
+                    )
+                return len(updates)
+        except Exception:
+            return 0
+
