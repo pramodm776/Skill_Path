@@ -289,6 +289,32 @@ def test_deterministic_assessment_links_real_evidence_and_labels_absence_careful
     )
 
 
+def test_job_allows_an_unknown_company_but_requires_a_traceable_source_url(tmp_path) -> None:
+    initial = _inspection(INITIAL_SHA, "from pathlib import Path\n")
+    app = _create_app(_settings(tmp_path), FakeAsyncGitHubClient({INITIAL_SHA: initial}))
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/jobs",
+            json={
+                "title": "Backend Engineering Intern",
+                "source_url": "https://jobs.example.org/backend-intern",
+                "description": "Required qualifications include Python and FastAPI for backend services.",
+            },
+        )
+        assert response.status_code == 201, response.text
+        assert response.json()["job"]["company"] == "Company not specified"
+
+        missing_source = client.post(
+            "/api/jobs",
+            json={
+                "title": "Backend Engineering Intern",
+                "description": "Required qualifications include Python and FastAPI for backend services.",
+            },
+        )
+        assert missing_source.status_code == 422
+
+
 def test_optional_integration_routes_are_server_side_and_webhook_authenticated(tmp_path) -> None:
     initial = _inspection(INITIAL_SHA, "from fastapi import FastAPI\napp = FastAPI()\n")
     fake_github = FakeAsyncGitHubClient({INITIAL_SHA: initial})
@@ -447,3 +473,120 @@ def test_monitor_records_sanitized_github_rate_limit_error(tmp_path) -> None:
         assert monitor["state"] == "error"
         assert monitor["last_error"]["code"] == "github_rate_limited"
         assert "rate limit" in monitor["last_error"]["message"].lower()
+
+
+def test_job_and_repository_crud_lifecycle(tmp_path) -> None:
+    initial = _inspection(
+        INITIAL_SHA,
+        "from fastapi import FastAPI\n\napp = FastAPI()\n",
+    )
+    fake_github = FakeAsyncGitHubClient({INITIAL_SHA: initial})
+    app = _create_app(_settings(tmp_path), fake_github)
+
+    with TestClient(app) as client:
+        # 1. Verify list_jobs is initially empty
+        res = client.get("/api/jobs")
+        assert res.status_code == 200
+        assert res.json()["jobs"] == []
+
+        # 2. Create a job
+        job_res = client.post(
+            "/api/jobs",
+            json={
+                "title": "Backend Intern",
+                "company": "Tech Corp",
+                "source_url": "https://jobs.example.org/backend-intern",
+                "description": "Requires Python and FastAPI for backend services. Docker preferred.",
+            },
+        )
+        assert job_res.status_code == 201
+        job = job_res.json()["job"]
+        job_id = job["id"]
+
+        # 3. List jobs returns created job
+        res = client.get("/api/jobs")
+        assert res.status_code == 200
+        jobs = res.json()["jobs"]
+        assert len(jobs) == 1
+        assert jobs[0]["id"] == job_id
+        assert jobs[0]["title"] == "Backend Intern"
+
+        # 4. Update job with new title, description, company
+        update_res = client.put(
+            f"/api/jobs/{job_id}",
+            json={
+                "title": "Senior Backend Engineer",
+                "company": "Tech Global",
+                "source_url": "https://jobs.example.org/senior-backend",
+                "description": "Expert in Python, FastAPI, and SQL databases required for high throughput.",
+            },
+        )
+        assert update_res.status_code == 200
+        updated = update_res.json()["job"]
+        assert updated["title"] == "Senior Backend Engineer"
+        assert updated["company"] == "Tech Global"
+        extracted_skills = {s["key"] for s in updated["skills"]}
+        assert "fastapi" in extracted_skills
+        assert "sql_databases" in extracted_skills
+
+        # 5. Connect repository to this job
+        repo_res = client.post(
+            "/api/repositories",
+            json={"job_id": job_id, "repository_url": REPOSITORY_URL},
+        )
+        assert repo_res.status_code == 201
+        repo_id = repo_res.json()["repository"]["id"]
+
+        # 6. List repositories filtered by job_id
+        list_repo_res = client.get(f"/api/repositories?job_id={job_id}")
+        assert list_repo_res.status_code == 200
+        repos = list_repo_res.json()["repositories"]
+        assert len(repos) == 1
+        assert repos[0]["id"] == repo_id
+
+        # 7. List all repositories without job_id
+        list_all_res = client.get("/api/repositories")
+        assert list_all_res.status_code == 200
+        assert len(list_all_res.json()["repositories"]) == 1
+
+        # 8. Delete repository
+        del_repo_res = client.delete(f"/api/repositories/{repo_id}")
+        assert del_repo_res.status_code == 200
+        assert del_repo_res.json() == {"deleted": True, "repository_id": repo_id}
+
+        # Verify repository is gone
+        overview_res = client.get(f"/api/repositories/{repo_id}/overview")
+        assert overview_res.status_code == 404
+
+        # Verify list repositories is now empty
+        list_repo_res2 = client.get(f"/api/repositories?job_id={job_id}")
+        assert list_repo_res2.status_code == 200
+        assert len(list_repo_res2.json()["repositories"]) == 0
+
+        # Reconnect repository to test cascade delete of job
+        repo_res2 = client.post(
+            "/api/repositories",
+            json={"job_id": job_id, "repository_url": REPOSITORY_URL},
+        )
+        assert repo_res2.status_code == 201
+        repo_id2 = repo_res2.json()["repository"]["id"]
+
+        # 9. Delete job -> cascades to repository and snapshots
+        del_job_res = client.delete(f"/api/jobs/{job_id}")
+        assert del_job_res.status_code == 200
+        assert del_job_res.json() == {"deleted": True, "job_id": job_id}
+
+        # Verify job is gone
+        get_job_res = client.get(f"/api/jobs/{job_id}")
+        assert get_job_res.status_code == 404
+
+        # Verify repository was cascaded
+        overview_res2 = client.get(f"/api/repositories/{repo_id2}/overview")
+        assert overview_res2.status_code == 404
+
+        # 10. Non-existent entity checks return 404
+        assert client.get("/api/jobs/99999").status_code == 404
+        assert client.delete("/api/jobs/99999").status_code == 404
+        assert client.delete("/api/repositories/99999").status_code == 404
+        assert client.get("/api/repositories?job_id=99999").status_code == 404
+

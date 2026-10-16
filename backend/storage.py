@@ -211,10 +211,49 @@ class SQLiteStore:
             row = connection.execute("SELECT * FROM jobs WHERE id = ?", (cursor.lastrowid,)).fetchone()
         return self._job(row) or {}
 
+    def list_jobs(self) -> list[dict[str, Any]]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM jobs ORDER BY id DESC"
+            ).fetchall()
+        return [self._job(row) or {} for row in rows]
+
     def get_job(self, job_id: int) -> dict[str, Any] | None:
         with self._connection() as connection:
             row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
         return self._job(row)
+
+    def update_job(
+        self,
+        job_id: int,
+        *,
+        title: str,
+        company: str,
+        source_url: str,
+        description: str,
+        skills: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        now = utc_now()
+        with self._connection() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE jobs
+                SET title = ?, company = ?, source_url = ?, description = ?,
+                    skills_json = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (title, company, source_url, description, _dump(skills), now, job_id),
+            )
+            if cursor.rowcount == 0:
+                return None
+            row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        return self._job(row)
+
+    def delete_job(self, job_id: int) -> bool:
+        """Delete a job and cascade to its repositories, snapshots, and events via FK."""
+        with self._connection() as connection:
+            cursor = connection.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        return cursor.rowcount > 0
 
     def create_repository(
         self,
@@ -259,6 +298,25 @@ class SQLiteStore:
             return None
         repository["job"] = self.get_job(int(repository["job_id"]))
         return repository
+
+    def list_repositories(self, job_id: int | None = None) -> list[dict[str, Any]]:
+        with self._connection() as connection:
+            if job_id is not None:
+                rows = connection.execute(
+                    "SELECT * FROM repositories WHERE job_id = ? ORDER BY id DESC",
+                    (job_id,),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT * FROM repositories ORDER BY id DESC"
+                ).fetchall()
+        return [self._repository(row) or {} for row in rows]
+
+    def delete_repository(self, repository_id: int) -> bool:
+        """Delete a repository and cascade to its snapshots, events, and subscriptions via FK."""
+        with self._connection() as connection:
+            cursor = connection.execute("DELETE FROM repositories WHERE id = ?", (repository_id,))
+        return cursor.rowcount > 0
 
     def update_repository_metadata(
         self,
