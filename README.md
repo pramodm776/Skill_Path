@@ -1,173 +1,186 @@
 # SkillPath AI
 
-SkillPath AI is a working 24-hour hackathon MVP that keeps a portfolio-vs-job assessment current as a real GitHub repository changes.
+> **AI Career Coach & Portfolio Evidence Ledger**  
+> *Match what your code proves to the role you want — with verifiable citations, automatic commit reassessment, and live Proof Deltas.*
 
-It is built for the required loop:
+[![CI](https://github.com/vedantsable56/Skill_Path/actions/workflows/ci.yml/badge.svg)](https://github.com/vedantsable56/Skill_Path/actions)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-1.0.0-009688.svg)](https://fastapi.tiangolo.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+---
+
+## The Core Problem & Differentiator
+
+Most AI career tools are résumé chatbots or keyword matchers: they hallucinate skills, invent qualifications from fluff, or make arbitrary assumptions.
+
+**SkillPath AI is fundamentally different: it is an evidence-backed career ledger.**
+- **Deterministic Fact-Checking:** Never uses an LLM to guess if code works. Uses a bounded AST & pattern analysis engine that requires **real code syntax** (e.g. testing requires both test declarations AND assertions; comments and docstrings are filtered out).
+- **Verifiable Citations:** Every single demonstrated skill links directly to an **exact GitHub file path, 1-indexed line range, code excerpt, and commit SHA**.
+- **Ethical Safeguard:** Missing evidence is strictly labelled **"not demonstrated in this inspected scope"** — never as a verdict that a student lacks the skill.
+- **The Proof Delta:** When a student pushes a commit to GitHub, SkillPath AI detects the new commit SHA (via 10s poll or instant push webhook) and produces a **before-and-after comparison** proving exactly what new requirements were satisfied.
 
 ```text
-real job posting -> GitHub repository evidence -> transparent gaps
--> real pushed commit -> automatic reassessment -> before/after evidence
+Real Job Posting  ──>  Bounded GitHub Scan  ──>  Accurate Gaps
+                                                      │
+                                             New Commit Pushed
+                                                      │
+                                                      ▼
+Proof Delta  <──  Before/After Comparison  <──  Automatic Reassessment
 ```
 
-The product is intentionally conservative: no evidence is ever treated as proof that a student lacks a skill. It is shown as **not demonstrated in this inspected scope**.
+---
 
-## What works
+## Key Features
 
-- Saves a job title, optional company context, real public source URL, and pasted description. There is also a best-effort page-text fetch helper; pasted text remains the reliable fallback.
-- Normalizes only directly mentioned, supported skills and retains the original job-description excerpt.
-- Uses the real GitHub REST API for public repositories and server-side-token private repositories.
-- Reads the default branch, commit SHA/link, tree, and a bounded subset of text files without cloning or executing repository code.
-- Filters binary, generated, minified, dependency, lock, and likely secret files, and records the inspection scope/limits.
-- Produces per-skill evidence with file path, line range, excerpt, commit SHA, confidence, limitations, and careful gap wording.
-- Persists immutable SQLite snapshots. A unique repository/SHA constraint prevents duplicate snapshots.
-- Runs a server-side polling monitor that detects a new default-branch commit, obtains changed files where GitHub permits it, automatically reassesses the exact new SHA, and records an event.
-- Includes a responsive vanilla HTML/CSS/JS dashboard with evidence cards, monitor state, history, before/after comparison, loading/error states, and future-only recommendations.
-- Supports optional JSearch discovery with India queries. Search results only prefill a review step; the selected direct posting URL and description are still explicitly saved.
-- Adds a Proof Delta on comparison: changed evidence, status transitions, claim boundary, and a clearly labelled future evidence task.
-- Works without an LLM key in labelled deterministic mode. OpenAI interpretation is opt-in; xAI/Grok is a controlled fallback only after retryable OpenAI failures and neither provider can create evidence citations or statuses.
-- Supports opt-in Telegram pairing and one concise automatic-reassessment alert per new snapshot. It stores only a one-time pairing-code hash and never sends source excerpts or credentials to Telegram.
-- Includes a Docker image and Azure Container Apps Bicep deployment profile for one same-origin service; see [docs/azure-deployment.md](docs/azure-deployment.md).
+1. **Job Requirements Ingestion:**
+   - Ingest any public job posting URL with preserved traceability.
+   - **Saved Jobs Dropdown:** Switch between multiple saved roles with one click or delete unwanted postings.
+   - **Optional JSearch Discovery:** Search live Indian or global postings by keyword and location.
 
-## Stack
+2. **Read-Only Bounded GitHub Code Inspection:**
+   - 22 skill detection rules across Python, FastAPI, Flask, SQL Databases, React, TypeScript, JavaScript, Docker, CI/CD, AWS, Azure, Machine Learning, RAG, Embeddings, Java, C++, and more.
+   - Inspects public repositories without authentication (60 req/hr) or with a read-only GitHub PAT (5,000 req/hr).
+   - Never clones, installs, or executes code. Inspects up to 20 files (max 200 KB per file, 1.5 MB total).
 
-- Frontend: HTML, CSS, vanilla JavaScript
-- Backend: Python and FastAPI
-- Data: SQLite
-- Repository access: GitHub REST API via `httpx`
-- Optional interpretation: OpenAI Responses API, controlled xAI Responses fallback, server-side only
-- Optional discovery/alerts: JSearch via RapidAPI and Telegram Bot API, server-side only
+3. **Live Reassessment & Instant Webhook:**
+   - **Background Polling Monitor:** Automatically checks for new commit SHAs every 10 seconds.
+   - **GitHub Push Webhook (`POST /api/integrations/github/webhook`):** Receives instant GitHub push events and triggers immediate reassessment without waiting for polling cycles.
+   - **Multi-Job Reassessment:** One repository push updates all jobs tracking that repository simultaneously.
 
-## Run locally on Windows PowerShell
+4. **Snapshot History & Proof Delta:**
+   - Immutable SQLite snapshot history deduplicated by `(repository_id, commit_sha)`.
+   - Side-by-side Proof Delta comparison showing gained evidence, status changes, and fit score progression.
 
-From the workspace root:
+5. **Optional AI Interpretations & Growth Plan:**
+   - **OpenAI Responses Integration:** When configured, generates plain-English assessment summaries and personalized next-step task recommendations.
+   - **Controlled xAI / Grok Fallback:** Fallback activates only on transient OpenAI failures.
+   - **Integrity Rule:** AI models can *never* invent evidence citations or alter deterministic skill statuses.
 
+6. **Optional Telegram Alerts:**
+   - Connect a Telegram bot using a secure one-time pairing code.
+   - Automatically sends a notification to your Telegram chat when a new commit is reassessed.
+
+7. **Modern Responsive UI:**
+   - High-contrast, dark mode theme with glassmorphic accents and accessible typography.
+   - Fully responsive layouts tailored for desktop, tablet, and mobile presentation.
+
+---
+
+## Architecture & Technology Stack
+
+- **Backend:** Python 3.11 + FastAPI (single service, dependency injection pattern)
+- **Database:** SQLite with WAL mode (`data/career_coach.sqlite3`)
+- **Frontend:** Vanilla HTML5, modern CSS3 (custom design system, dark mode), Vanilla JavaScript (IIFE, no bundler needed)
+- **External APIs:** GitHub REST API, optional OpenAI API, optional RapidAPI JSearch, optional Telegram Bot API
+- **Infra:** Docker (non-root `python:3.11-slim`), Azure Container Apps (`infra/foundation.bicep` & `infra/app.bicep`)
+
+---
+
+## Quickstart: Running Locally
+
+### 1. Prerequisites
+- Python 3.11+
+- Node.js (for syntax validation check)
+- Git
+
+### 2. Setup & Installation
 ```powershell
-cd "C:\Users\HP\OneDrive\Desktop\hackathon-project"
-py -3.11 -m venv .venv
+# Clone the repository
+git clone https://github.com/vedantsable56/Skill_Path.git
+cd Skill_Path
+
+# Create and activate virtual environment
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+
+# Install dependencies
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+python -m pip install -r backend/requirements.txt
 ```
 
-If PowerShell blocks activation in this one session, run this first:
+### 3. Configure Environment (`.env`)
+Create a `.env` file in the project root:
+```env
+# Core settings
+DATABASE_PATH=data/career_coach.sqlite3
+SQLITE_JOURNAL_MODE=WAL
+MONITORING_ENABLED=true
+POLL_INTERVAL_SECONDS=10
 
+# GitHub Integration (Recommended: fine-grained read-only PAT for 5,000 req/hr)
+GITHUB_TOKEN=your_github_token_here
+
+# Optional: Instant GitHub Push Webhook (leave blank for open dev mode)
+GITHUB_WEBHOOK_SECRET=
+
+# Optional: AI Interpretations & Growth Recommendations
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4.1-mini
+ENABLE_LLM_EXPLANATIONS=false
+
+# Optional: Live Job Search via RapidAPI
+JSEARCH_API_KEY=
+JSEARCH_API_URL=https://jsearch.p.rapidapi.com
+
+# Optional: Telegram Reassessment Alerts
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=
+TELEGRAM_BOT_USERNAME=
+TELEGRAM_NOTIFICATIONS_ENABLED=false
+PUBLIC_BASE_URL=
+```
+
+### 4. Start the Application
 ```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+python -m uvicorn backend.main:app --reload --port 8000
 ```
+Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in your browser.  
+Interactive Swagger API documentation is available at **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)**.
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Stop the server with `Ctrl+C`.
+---
 
-Run tests from the same activated environment:
+## Running Tests & Merge Gate
 
+Run the automated test suite and merge gate checks:
 ```powershell
-cd "C:\Users\HP\OneDrive\Desktop\hackathon-project"
-python -m pytest -q
+# Run 13 passing unit and integration tests
+pytest -q
+
+# Run Python compilation check
+python -m compileall -q backend
+
+# Run JavaScript syntax check
+node --check frontend\script.js
 ```
 
-## Environment variables
+---
 
-Copy `.env.example` to `.env`; it contains placeholders only.
+## Live Demonstration Guide
 
-| Variable | Required? | Meaning |
-| --- | --- | --- |
-| `DATABASE_PATH` | No | SQLite path. Default: `data/career_coach.sqlite3`. |
-| `SQLITE_JOURNAL_MODE` | No | `WAL` locally; Azure's single-replica Azure Files template uses `DELETE`. |
-| `GITHUB_TOKEN` | Public repos: no; private repos: yes | Fine-grained, read-only token held only by the server. It also improves API rate limits. |
-| `GITHUB_API_URL` | No | GitHub REST origin. Default: `https://api.github.com`. |
-| `GITHUB_TIMEOUT_SECONDS` | No | Per-request GitHub timeout. |
-| `GITHUB_MAX_FILES` | No | Maximum eligible files read per assessment (default `20`, deliberately bounded for unauthenticated GitHub limits). |
-| `GITHUB_MAX_FILE_BYTES` | No | Maximum bytes for one eligible file. |
-| `GITHUB_MAX_TOTAL_BYTES` | No | Maximum total inspected bytes. |
-| `POLL_INTERVAL_SECONDS` | No | Repository polling cadence. Set to `10` for the demo; default is `60`. |
-| `MONITORING_ENABLED` | No | Enables the background polling loop. |
-| `OPENAI_API_KEY` | No | Server-only key for optional interpretation. |
-| `OPENAI_MODEL` | No | Optional interpretation model. |
-| `ENABLE_LLM_EXPLANATIONS` | No | Set `true` only when you want job excerpts and already-validated evidence excerpts sent to OpenAI. |
+Follow our comprehensive rehearsal and demo guide in [docs/demo-script.md](docs/demo-script.md) for:
+- Pre-prepared Python/FastAPI and Full-Stack job postings.
+- 5-minute step-by-step judge demonstration flow.
+- Fast webhook simulation commands for rehearsals.
+- Judge Q&A talking points explaining how SkillPath AI prevents LLM hallucination and handles rate limits.
 
-### Optional server-side integrations
+---
 
-Add a value only to local `.env` or an Azure Key Vault-backed app setting; never commit it to `.env.example`. A value alone does not make a provider active: the matching feature flag must also be enabled.
+## Cloud Deployment (Azure)
 
-| Variable | Purpose |
-| --- | --- |
-| `JSEARCH_API_KEY`, `JSEARCH_API_URL`, `JSEARCH_TIMEOUT_SECONDS` | Optional server-side JSearch discovery. The selected result must still retain its real posting URL and reviewed description. |
-| `XAI_API_KEY`, `XAI_API_URL`, `XAI_MODEL`, `ENABLE_XAI_FALLBACK` | Controlled Grok/xAI fallback after an eligible transient OpenAI failure. It cannot alter deterministic evidence. |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_API_URL`, `TELEGRAM_NOTIFICATIONS_ENABLED`, `TELEGRAM_BOT_USERNAME`, `PUBLIC_BASE_URL` | Opt-in webhook, expiring pairing, and automatic Proof Delta alerts. Chat IDs/tokens never enter frontend responses. |
-| `AZURE_KEY_VAULT_URL`, `APPLICATIONINSIGHTS_CONNECTION_STRING` | Azure deployment configuration. Use managed identity and Key Vault rather than an Azure client secret. |
+SkillPath AI is ready for single-container deployment to Azure Container Apps:
+```powershell
+# See docs/azure-deployment.md for complete details
+az login
+az group create --name skillpath-rg --location centralindia
+az deployment group create --resource-group skillpath-rg --template-file infra/foundation.bicep
+az acr build --registry <acrName> --image skillpath-ai:v1 .
+az deployment group create --resource-group skillpath-rg --template-file infra/app.bicep
+```
+For full instructions, see [docs/azure-deployment.md](docs/azure-deployment.md).
 
-For Azure Container Apps, mount the SQLite directory through the platform and set `DATABASE_PATH` to that mounted path. The provided template intentionally restricts the app to one always-on replica; read [docs/azure-deployment.md](docs/azure-deployment.md) before deployment.
+---
 
-Never put a token in the browser, a repository URL, or a commit message. `.env` is ignored by Git.
+## License
 
-## Demo a real automatic reassessment
-
-1. Create or choose a **public GitHub repository you control**. Commit and push an initial version with an API route but no SQL-query/test evidence.
-2. Start this app with `POLL_INTERVAL_SECONDS=10`.
-3. In the dashboard, paste a **real public job or internship posting URL** and its actual requirements. Use a role that explicitly mentions APIs, SQL, and automated testing if those are the planned demo signals.
-4. Connect your real repository URL. Show the initial snapshot, commit link, evidence paths/excerpts, and the accurate SQL/testing gap wording.
-5. Make a genuine follow-up change in the external demo repository (for example, add a parameterized `SELECT` query and a test with an assertion), then push it:
-
-   ```powershell
-   cd "C:\path\to\your-controlled-demo-repository"
-   git add .
-   git commit -m "Add query and automated test evidence"
-   git push
-   ```
-
-6. Do not press a manual Analyse button. Wait for the server poll. The dashboard should show a new SHA, an **Automatic reassessment** event, a new snapshot, and a before/after comparison of validated evidence.
-7. Poll again with no new commit. The monitor reports no change and history remains at the same number of snapshots.
-
-For a compressed live demo, **Check monitor now** calls the polling/change-detection code path; it does not manually rewrite an assessment.
-
-The fuller judge-facing flow is in [docs/demo-script.md](docs/demo-script.md).
-
-## Evidence and score semantics
-
-The engine uses direct, deterministic source/configuration patterns. It ignores comments for code proof and treats README/package/config signals as weak context where applicable. Before storing an evidence item, it verifies that the path, line range, and excerpt match the inspected file contents.
-
-Statuses are:
-
-- **Demonstrated**: validated direct implementation signal at the inspected commit.
-- **Partially demonstrated**: limited or contextual signal; not proof of mastery.
-- **Not demonstrated in this inspected scope**: no validated matching evidence was returned in the bounded inspection. This is not proof the student lacks the skill.
-
-The optional fit score is explained in the response and dashboard: required skills weigh 1, preferred skills 0.5; demonstrated = 1, partial = 0.5, missing-in-scope = 0. It is an evidence-traceability aid, not a hiring recommendation or measure of proficiency, authorship, interview performance, or complete experience.
-
-## Privacy and security
-
-- GitHub, OpenAI, xAI, JSearch, and Telegram credentials are server-side environment variables only.
-- The backend never executes, imports, installs, clones, or runs inspected repository code.
-- GitHub calls use timeouts, bounded retries for transient failures, safe handling for auth/rate-limit errors, and no retry for invalid/authentication requests.
-- Safety filters exclude likely secrets, generated files, dependencies, binaries, oversized files, and lock files.
-- SQLite stores assessment snapshots and selected validated excerpts; it does not store a full cloned copy of an inspected repository.
-- The OpenAI opt-in sends only job title/company, requirement excerpts, statuses, and up to two already-validated evidence excerpts per skill. It never sends keys or uninspected source. xAI receives the same bounded payload only after a retryable OpenAI failure. A missing/failed key produces a controlled deterministic result.
-- Telegram receives a short new-commit alert only after a paired repository is automatically reassessed. It never receives job text, source excerpts, GitHub tokens, provider keys, or arbitrary incoming chat text.
-
-## Key API endpoints
-
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /api/health` | Health and non-secret deterministic/LLM status. |
-| `POST /api/jobs` | Save real source URL and requirements text. |
-| `POST /api/job-search` | Optional server-side JSearch discovery; returned items must be reviewed before saving. |
-| `POST /api/repositories` | Real GitHub inspection and initial assessment. |
-| `GET /api/repositories/{id}/monitor` | Monitoring state, timestamps, and events. |
-| `POST /api/repositories/{id}/monitor/check` | Run change detection now. A new SHA is reassessed automatically. |
-| `GET /api/repositories/{id}/history` | Stored snapshot history. |
-| `GET /api/assessments/{current}/compare/{previous}` | Evidence/status comparison. |
-| `POST /api/repositories/{id}/telegram/pair` | Create an expiring one-time Telegram pairing command. |
-
-See [docs/api-contracts.md](docs/api-contracts.md) for the complete contract, [docs/architecture.md](docs/architecture.md) for data flow, and [docs/decisions.md](docs/decisions.md) for deliberate tradeoffs.
-
-## Known limitations
-
-- Many career sites block automated extraction or render descriptions in client-side JavaScript. The app retains the real URL and supports manual paste rather than pretending fetch succeeded.
-- Requirement normalization intentionally supports a conservative catalog. Unrecognized phrases are retained in the job text but are not guessed into a skill claim.
-- GitHub's compare endpoint may be unavailable for force-pushes, divergent history, or permissions. The service still reassesses the detected new SHA and reports the comparison limitation.
-- A repository scan cannot prove authorship, seniority, production deployment, or competence beyond the visible implementation signals.
-- Polling is appropriate for a local hackathon MVP. A deployed production system could optionally add verified GitHub webhooks.
-- OpenAI interpretation is optional and disabled by default; it is not required for evidence extraction or automatic reassessment.
-- The Telegram feature is an operator/demo pairing feature because this MVP does not yet have end-user authentication. Production needs repository ownership and account authorization checks.
-- The Azure SQLite profile is deliberately single-replica. Move to PostgreSQL before horizontally scaling or running multiple writers.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
