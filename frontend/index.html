@@ -161,6 +161,21 @@
                 <p class="form-feedback" id="repository-form-feedback" role="status" aria-live="polite"></p>
               </div>
             </form>
+
+            <div class="repo-loop-hint" aria-label="How assessment works">
+              <div class="repo-loop-step">
+                <strong>Deterministic AST Scan</strong>
+                <span>Inspects routes, queries, classes, and assertions without cloning or running code.</span>
+              </div>
+              <div class="repo-loop-step">
+                <strong>Transparent Citations</strong>
+                <span>Every signal maps to an exact file path, 1-indexed line range, and code excerpt.</span>
+              </div>
+              <div class="repo-loop-step">
+                <strong>Live Proof Delta</strong>
+                <span>Reassesses automatically on new commits via push webhook or 10s polling.</span>
+              </div>
+            </div>
           </article>
         </section>
 
