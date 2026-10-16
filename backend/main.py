@@ -38,8 +38,9 @@ MAX_FETCHED_PAGE_BYTES = 750_000
 class JobCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=240)
     company: Optional[str] = Field(default=None, max_length=240)
+    city: Optional[str] = Field(default=None, max_length=160)
     source_url: Optional[str] = Field(default=None, max_length=2_048)
-    description: str = Field(min_length=1, max_length=MAX_JOB_DESCRIPTION_CHARS)
+    description: Optional[str] = Field(default="", max_length=MAX_JOB_DESCRIPTION_CHARS)
 
 
 class JobFetchRequest(BaseModel):
@@ -65,8 +66,9 @@ class MonitorUpdateRequest(BaseModel):
 class JobUpdateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=240)
     company: Optional[str] = Field(default=None, max_length=240)
+    city: Optional[str] = Field(default=None, max_length=160)
     source_url: Optional[str] = Field(default=None, max_length=2_048)
-    description: str = Field(min_length=1, max_length=MAX_JOB_DESCRIPTION_CHARS)
+    description: Optional[str] = Field(default="", max_length=MAX_JOB_DESCRIPTION_CHARS)
 
 
 class PageTextExtractor(HTMLParser):
@@ -204,6 +206,56 @@ def _history_summary(snapshot: dict[str, Any]) -> dict[str, Any]:
         "summary": summary,
         "changed_files": snapshot.get("changed_files", []),
     }
+def generate_benchmark_job_description(title: str, company: str = "", city: str = "") -> str:
+    lower = title.lower()
+    location_str = f" in {city}" if city else ""
+    company_str = f" at {company}" if company and company != "Company not specified" else ""
+    skills_to_include: list[str] = []
+    if any(k in lower for k in ["python", "django", "flask", "fastapi"]):
+        skills_to_include.extend([
+            "Python development with clean, modular architecture and data structures",
+            "REST API development using modern frameworks such as FastAPI or Flask",
+            "Relational database design, SQL queries, and schema migrations (PostgreSQL or SQLite)",
+            "Automated testing with pytest test suites and robust assertions",
+            "Version control and Git collaboration best practices",
+        ])
+    if any(k in lower for k in ["rag", "ai", "machine learning", "ml", "llm", "data science"]):
+        skills_to_include.extend([
+            "Python engineering and data processing pipelines",
+            "Retrieval-augmented generation (RAG) and vector similarity search",
+            "Machine learning evaluation, model inference, and reproducible results",
+            "Backend API development and service endpoints",
+            "Automated testing and dataset validation",
+        ])
+    if any(k in lower for k in ["frontend", "react", "ui", "web design"]):
+        skills_to_include.extend([
+            "Modern JavaScript and TypeScript frontend engineering",
+            "React component architecture, state management, and lifecycle hooks",
+            "Semantic HTML and CSS styling with responsive design",
+            "Client-side API consumption and automated UI testing",
+        ])
+    if not skills_to_include:
+        skills_to_include = [
+            "Python and modern backend programming languages",
+            "REST API development and secure HTTP endpoint design",
+            "SQL and database queries for data storage and retrieval",
+            "Automated testing with unit test coverage and assertions",
+            "Docker containerization and deployment pipelines",
+            "Git version control and collaborative branching",
+        ]
+    clean_company = company.replace("Company not specified", "").strip(" ·").strip()
+    if clean_company and city and city.lower() in clean_company.lower():
+        clean_company = clean_company.replace(city, "").strip(" ·").strip()
+    company_str = f" at {clean_company}" if clean_company else ""
+    location_str = f" ({city})" if city else ""
+    lines = [
+        f"Engineering requirements for {title}{company_str}{location_str}:",
+        "Key qualifications and capabilities:",
+    ]
+    for item in skills_to_include:
+        lines.append(f"- {item}")
+    lines.append("Demonstrated evidence through test suites, repository commits, and structured source code is expected.")
+    return "\n".join(lines)
 
 
 def create_app(
@@ -290,18 +342,32 @@ def create_app(
             source_url = validate_public_http_url(raw_source, label="Job posting URL")
         else:
             source_url = f"https://skillpath.local/jobs/role-{int(time.time() * 1000)}"
-        description = payload.description.strip()
+        description = payload.description.strip() if isinstance(payload.description, str) else ""
         company = payload.company.strip() if isinstance(payload.company, str) else ""
+        city = payload.city.strip() if isinstance(payload.city, str) else ""
+
+        display_company = company
+        if display_company == "Company not specified":
+            display_company = ""
+        if city:
+            if display_company:
+                if city.lower() not in display_company.lower():
+                    display_company = f"{display_company} · {city}"
+            else:
+                display_company = city
+        display_company = display_company or "Company not specified"
+
         if len(description) < 30:
-            raise AppError(
-                "job_description_too_short",
-                "Paste enough job-description text to identify real requirements; the source URL will be retained.",
-                422,
+            description = generate_benchmark_job_description(
+                title=payload.title.strip(),
+                company=display_company,
+                city=city,
             )
+
         skills = extract_job_skills(description)
         job = store.create_job(
             title=payload.title.strip(),
-            company=company or "Company not specified",
+            company=display_company,
             source_url=source_url,
             description=description,
             skills=skills,
@@ -349,19 +415,30 @@ def create_app(
             source_url = validate_public_http_url(raw_source, label="Job posting URL")
         else:
             source_url = existing.get("source_url") or f"https://skillpath.local/jobs/role-{int(time.time() * 1000)}"
-        description = payload.description.strip()
+        description = payload.description.strip() if isinstance(payload.description, str) else ""
         company = payload.company.strip() if isinstance(payload.company, str) else ""
+        city = payload.city.strip() if isinstance(payload.city, str) else ""
+
+        display_company = company
+        if city:
+            if display_company and city.lower() not in display_company.lower():
+                display_company = f"{display_company} · {city}"
+            elif not display_company:
+                display_company = city
+        display_company = display_company or "Company not specified"
+
         if len(description) < 30:
-            raise AppError(
-                "job_description_too_short",
-                "Paste enough job-description text to identify real requirements; the source URL will be retained.",
-                422,
+            description = generate_benchmark_job_description(
+                title=payload.title.strip(),
+                company=display_company,
+                city=city,
             )
+
         skills = extract_job_skills(description)
         job = store.update_job(
             job_id,
             title=payload.title.strip(),
-            company=company or "Company not specified",
+            company=display_company,
             source_url=source_url,
             description=description,
             skills=skills,
@@ -371,6 +448,7 @@ def create_app(
         warning = None
         if not skills:
             warning = (
+
                 "No supported skill phrases were extracted from the updated description. "
                 "Add explicit skill requirements before connecting a repository."
             )

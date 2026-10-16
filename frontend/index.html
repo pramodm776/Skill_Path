@@ -104,14 +104,19 @@
 
             <form id="job-form" novalidate>
               <div class="form-grid">
-                <label>
+                <label class="form-span-full">
                   <span>Role title <em aria-hidden="true">*</em></span>
-                  <input id="job-title" name="title" type="text" autocomplete="organization-title" placeholder="e.g. Backend Engineering Intern" required />
+                  <input id="job-title" name="title" type="text" autocomplete="organization-title" placeholder="e.g. Backend Engineering Intern or Python Developer" required />
                 </label>
                 <label>
                   <span>Company <span class="optional">optional</span></span>
                   <input id="job-company" name="company" type="text" autocomplete="organization" placeholder="e.g. Acme Labs" />
-                  <small>Used only to label the assessment. Search pre-fills it when available.</small>
+                  <small>Used only to label the assessment.</small>
+                </label>
+                <label>
+                  <span>City / Location <span class="optional">optional</span></span>
+                  <input id="job-city" name="city" type="text" placeholder="e.g. Pune, Bangalore, Remote" />
+                  <small>City context for job benchmarks and live search.</small>
                 </label>
                 <label class="form-span-full">
                   <span>Source posting URL <span class="optional">optional for manual entry / real-time jobs</span></span>
@@ -119,8 +124,8 @@
                   <small>Optional for real-time jobs or manual skill benchmark entry. Provide a link if you have a specific posting URL.</small>
                 </label>
                 <label class="form-span-full">
-                  <span>Job-description text <span class="optional">optional when the server can fetch the page</span></span>
-                  <textarea id="job-description" name="description" rows="6" placeholder="Paste the requirements here if the posting cannot be fetched, or to make the demo reproducible."></textarea>
+                  <span>Job-description text <span class="optional">optional — auto-generates benchmark requirements if empty</span></span>
+                  <textarea id="job-description" name="description" rows="6" placeholder="Paste the requirements here, or leave blank to automatically generate industry-standard benchmark requirements for this role."></textarea>
                   <small>The app sends this text only to the local backend for requirement extraction.</small>
                 </label>
               </div>
@@ -144,6 +149,16 @@
             </div>
             <p class="panel-intro">Use a repository URL. Authentication for private repositories belongs on the server, never in this page.</p>
 
+            <div class="saved-jobs-bar" id="saved-repos-bar" hidden>
+              <label for="saved-repos-select"><span>Assessed repositories</span></label>
+              <div class="saved-jobs-controls">
+                <select id="saved-repos-select" aria-label="Select an assessed repository">
+                  <option value="">-- Or switch to an assessed repository --</option>
+                </select>
+                <button class="button button--danger-quiet" type="button" id="delete-repo-button" title="Delete selected repository" disabled>Delete</button>
+              </div>
+            </div>
+
             <form id="repository-form" novalidate>
               <label>
                 <span>GitHub repository URL <em aria-hidden="true">*</em></span>
@@ -155,16 +170,23 @@
                   <span>Connect and assess</span>
                   <span class="button-arrow" aria-hidden="true">→</span>
                 </button>
+                <button class="button button--quiet" type="button" id="browse-repos-button" title="Fetch public repositories for a GitHub profile">
+                  <span>Fetch profile repos</span>
+                </button>
                 <button class="button button--danger-quiet" type="button" id="disconnect-repository-button" hidden>
                   Disconnect repository
                 </button>
                 <p class="form-feedback" id="repository-form-feedback" role="status" aria-live="polite"></p>
               </div>
               <div class="user-repos-drawer" id="user-repos-drawer" hidden>
-                <p class="user-repos-title" id="user-repos-title">Public Repositories</p>
+                <div class="user-repos-drawer-head">
+                  <p class="user-repos-title" id="user-repos-title">Public Repositories</p>
+                  <button class="icon-button" type="button" id="close-user-repos-button" aria-label="Close repository drawer">×</button>
+                </div>
                 <div class="user-repos-list" id="user-repos-list"></div>
               </div>
             </form>
+
 
             <div class="repo-loop-hint" aria-label="How assessment works">
               <div class="repo-loop-step">

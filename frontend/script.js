@@ -30,6 +30,7 @@
     jobForm: byId("job-form"),
     jobTitle: byId("job-title"),
     jobCompany: byId("job-company"),
+    jobCity: byId("job-city"),
     jobSourceUrl: byId("job-source-url"),
     jobDescription: byId("job-description"),
     saveJobButton: byId("save-job-button"),
@@ -41,6 +42,10 @@
     searchJobsButton: byId("search-jobs-button"),
     jobSearchFeedback: byId("job-search-feedback"),
     jobSearchResults: byId("job-search-results"),
+    savedReposBar: byId("saved-repos-bar"),
+    savedReposSelect: byId("saved-repos-select"),
+    deleteRepoButton: byId("delete-repo-button"),
+    browseReposButton: byId("browse-repos-button"),
     repositoryForm: byId("repository-form"),
     repositoryUrl: byId("repository-url"),
     connectRepositoryButton: byId("connect-repository-button"),
@@ -49,6 +54,7 @@
     repositoryFeedback: byId("repository-form-feedback"),
     userReposDrawer: byId("user-repos-drawer"),
     userReposTitle: byId("user-repos-title"),
+    closeUserReposButton: byId("close-user-repos-button"),
     userReposList: byId("user-repos-list"),
     scopeNotice: byId("scope-notice"),
     contextLinks: byId("context-links"),
@@ -135,6 +141,7 @@
 
   function statusClass(statusCode, statusText) {
     const code = String(statusCode || statusText || "").toLowerCase();
+    if (code.includes("awaiting")) return "awaiting";
     if (code.includes("partial")) return "partial";
     if (code.includes("not_demonstrated") || code.includes("not demonstrated")) return "not-demonstrated";
     if (code.includes("demonstrated")) return "demonstrated";
@@ -227,9 +234,13 @@
       elements.contextLinks.append(make("span", "context-empty", "No connected assessment yet"));
       return;
     }
-    const jobLink = externalLink(`${state.job.company} job source`, state.job.source_url, "context-link");
+    const isLocalBenchmark = !state.job.source_url || state.job.source_url.includes("skillpath.local");
+    const jobLabel = state.job.company && state.job.company !== "Company not specified" ? `${state.job.company} benchmark` : `${state.job.title} benchmark`;
+    const jobNode = isLocalBenchmark
+      ? make("span", "context-link", jobLabel)
+      : externalLink(`${state.job.company} job source`, state.job.source_url, "context-link");
     const repoLink = externalLink(`${state.repository.owner}/${state.repository.name}`, state.repository.repository_url, "context-link");
-    elements.contextLinks.append(jobLink, repoLink);
+    elements.contextLinks.append(jobNode, repoLink);
   }
 
   function renderRepositoryFacts() {
@@ -260,10 +271,17 @@
     const score = assessment?.fit_score;
     if (!assessment) {
       elements.fitScore.textContent = "—";
-      elements.fitTitle.textContent = "No score received";
-      elements.fitDescription.textContent = "A score is shown only when the assessment API returns its calculation or summary.";
-      elements.fitFormula.textContent = "No calculation has been reported.";
-      setTone(elements.assessmentState, "", "Awaiting assessment");
+      if (state.job?.skills?.length) {
+        elements.fitTitle.textContent = `${state.job.skills.length} requirements established`;
+        elements.fitDescription.textContent = `Job benchmark ready. Connect or assess a repository to inspect code evidence and calculate your fit score.`;
+        elements.fitFormula.textContent = "Score will calculate automatically as soon as repository code is inspected.";
+        setTone(elements.assessmentState, "working", "Awaiting repository code");
+      } else {
+        elements.fitTitle.textContent = "No score received";
+        elements.fitDescription.textContent = "A score is shown only when the assessment API returns its calculation or summary.";
+        elements.fitFormula.textContent = "No calculation has been reported.";
+        setTone(elements.assessmentState, "", "Awaiting assessment");
+      }
       return;
     }
     elements.fitScore.textContent = Number.isFinite(score?.value) ? `${score.value}%` : "—";
@@ -334,20 +352,38 @@
   function renderSkills() {
     clear(elements.skillsGrid);
     const items = state.snapshot?.assessment?.skill_assessments;
-    if (!Array.isArray(items) || !items.length) {
-      const empty = make("div", "empty-state empty-state--wide");
-      empty.append(make("span", "empty-state-icon", "⌘"));
-      const copy = document.createElement("div");
-      copy.append(make("h3", "", "No supported requirements assessed"));
-      copy.append(make("p", "", "The job source was retained, but no supported requirement phrases were available for an evidence assessment."));
-      empty.append(copy);
-      elements.skillsGrid.append(empty);
-      elements.skillsNote.textContent = "No supported skills were returned by the assessment API.";
+    if (Array.isArray(items) && items.length) {
+      items.forEach((item) => elements.skillsGrid.append(renderSkillCard(item)));
+      const limits = state.snapshot?.assessment?.inspection_limits || {};
+      elements.skillsNote.textContent = `${text(limits.inspected_file_count, "0")} files inspected; excerpts and paths are validated against that inspected content.`;
       return;
     }
-    items.forEach((item) => elements.skillsGrid.append(renderSkillCard(item)));
-    const limits = state.snapshot?.assessment?.inspection_limits || {};
-    elements.skillsNote.textContent = `${text(limits.inspected_file_count, "0")} files inspected; excerpts and paths are validated against that inspected content.`;
+    const jobSkills = state.job?.skills;
+    if (Array.isArray(jobSkills) && jobSkills.length) {
+      jobSkills.forEach((s) => {
+        const item = {
+          skill: s.skill,
+          status: "awaiting evidence",
+          status_code: "awaiting",
+          requirement_type: s.requirement_type || "required",
+          confidence: "pending",
+          explanation: `Extracted requirement: "${s.source_excerpt || s.matched_phrase}". Connect repository to inspect AST evidence.`,
+          job_requirement: s,
+          evidence: [],
+        };
+        elements.skillsGrid.append(renderSkillCard(item));
+      });
+      elements.skillsNote.textContent = `${jobSkills.length} job requirements established. Connect a GitHub repository to evaluate evidence and calculate score.`;
+      return;
+    }
+    const empty = make("div", "empty-state empty-state--wide");
+    empty.append(make("span", "empty-state-icon", "⌘"));
+    const copy = document.createElement("div");
+    copy.append(make("h3", "", "No supported requirements assessed"));
+    copy.append(make("p", "", "Save a job title or paste requirements above to extract benchmark skills."));
+    empty.append(copy);
+    elements.skillsGrid.append(empty);
+    elements.skillsNote.textContent = "No supported skills were returned by the assessment API.";
   }
 
   function renderGuidance() {
@@ -401,11 +437,12 @@
     if (!result) return;
     elements.jobTitle.value = result.title || "";
     elements.jobCompany.value = result.company === "Company not specified" ? "" : (result.company || "");
+    if (elements.jobCity) elements.jobCity.value = result.location || "";
     elements.jobSourceUrl.value = result.posting_url || "";
     elements.jobDescription.value = result.description || "";
     const descriptionNotice = result.description
       ? "Selected posting loaded into the form. You can adjust details or save directly."
-      : "Selected role title and company loaded. Enter skill requirements before saving.";
+      : "Selected role title and company loaded. Review or save to auto-benchmark requirements.";
     setFeedback(elements.jobFeedback, descriptionNotice, "success");
     elements.saveJobButton.scrollIntoView({ behavior: "smooth", block: "center" });
   }
@@ -589,9 +626,16 @@
         elements.savedJobsSelect.value = String(state.job.id);
       }
       elements.jobTitle.value = state.job.title || "";
-      elements.jobCompany.value = state.job.company === "Company not specified" ? "" : (state.job.company || "");
-      elements.jobSourceUrl.value = state.job.source_url || "";
-      elements.jobDescription.value = state.job.description || "";
+      const isGenericComp = !state.job.company || state.job.company === "Company not specified" || state.job.company === state.job.city;
+      elements.jobCompany.value = isGenericComp ? "" : state.job.company;
+      if (elements.jobCity) elements.jobCity.value = state.job.city || (state.job.company === state.job.city ? state.job.city : "");
+      const hasRealSource = state.job.source_url && !state.job.source_url.includes("skillpath.local");
+      elements.jobSourceUrl.value = hasRealSource ? state.job.source_url : "";
+      const isBenchmarkDesc = state.job.description && (
+        state.job.description.startsWith("Role Benchmark:") ||
+        state.job.description.startsWith("Engineering requirements for")
+      );
+      elements.jobDescription.value = isBenchmarkDesc ? "" : (state.job.description || "");
       elements.repositoryUrl.disabled = false;
       elements.connectRepositoryButton.disabled = false;
     }
@@ -602,7 +646,11 @@
     state.monitor = monitor;
     if (includeHistory) await loadHistory();
     renderAll();
-    if (state.repository) localStorage.setItem(ACTIVE_REPOSITORY_KEY, String(state.repository.id));
+    if (state.repository) {
+      localStorage.setItem(ACTIVE_REPOSITORY_KEY, String(state.repository.id));
+      if (elements.savedReposSelect) elements.savedReposSelect.value = String(state.repository.id);
+      if (elements.deleteRepoButton) elements.deleteRepoButton.disabled = false;
+    }
   }
 
   async function refreshConnectedState() {
@@ -670,6 +718,7 @@
       if (elements.deleteJobButton) elements.deleteJobButton.disabled = true;
       elements.jobTitle.value = "";
       elements.jobCompany.value = "";
+      if (elements.jobCity) elements.jobCity.value = "";
       elements.jobSourceUrl.value = "";
       elements.jobDescription.value = "";
       elements.repositoryUrl.value = "";
@@ -685,9 +734,16 @@
     state.job = found;
     if (elements.deleteJobButton) elements.deleteJobButton.disabled = false;
     elements.jobTitle.value = found.title || "";
-    elements.jobCompany.value = found.company === "Company not specified" ? "" : (found.company || "");
-    elements.jobSourceUrl.value = found.source_url || "";
-    elements.jobDescription.value = found.description || "";
+    const isGenericComp = !found.company || found.company === "Company not specified" || found.company === found.city;
+    elements.jobCompany.value = isGenericComp ? "" : found.company;
+    if (elements.jobCity) elements.jobCity.value = found.city || (found.company === found.city ? found.city : "");
+    const hasRealSource = found.source_url && !found.source_url.includes("skillpath.local");
+    elements.jobSourceUrl.value = hasRealSource ? found.source_url : "";
+    const isBenchmarkDesc = found.description && (
+      found.description.startsWith("Role Benchmark:") ||
+      found.description.startsWith("Engineering requirements for")
+    );
+    elements.jobDescription.value = isBenchmarkDesc ? "" : (found.description || "");
     elements.repositoryUrl.disabled = false;
     elements.connectRepositoryButton.disabled = false;
     elements.repositoryHelp.textContent = "Connect a GitHub repository to inspect evidence for this job.";
@@ -705,7 +761,10 @@
         state.history = [];
         state.monitor = null;
         state.events = [];
-        elements.repositoryUrl.value = "";
+        if (elements.savedReposSelect?.value) {
+          const matched = (state.savedRepositories || []).find((r) => String(r.id) === String(elements.savedReposSelect.value));
+          if (matched?.repository_url) elements.repositoryUrl.value = matched.repository_url;
+        }
         localStorage.removeItem(ACTIVE_REPOSITORY_KEY);
         renderAll();
       }
@@ -743,6 +802,88 @@
     }
   }
 
+  async function loadSavedRepositories() {
+    try {
+      const payload = await api("/api/repositories");
+      state.savedRepositories = Array.isArray(payload.repositories) ? payload.repositories : [];
+      if (!elements.savedReposSelect) return;
+      clear(elements.savedReposSelect);
+      const defaultOption = make("option", "", "-- Or switch to an assessed repository --");
+      defaultOption.value = "";
+      elements.savedReposSelect.append(defaultOption);
+      state.savedRepositories.forEach((r) => {
+        const label = `${r.owner}/${r.name} (${r.default_branch || "main"})`;
+        const opt = make("option", "", label);
+        opt.value = String(r.id);
+        elements.savedReposSelect.append(opt);
+      });
+      if (elements.savedReposBar) {
+        elements.savedReposBar.hidden = state.savedRepositories.length === 0;
+      }
+      if (state.repository?.id && elements.savedReposSelect) {
+        elements.savedReposSelect.value = String(state.repository.id);
+        if (elements.deleteRepoButton) elements.deleteRepoButton.disabled = false;
+      } else if (elements.deleteRepoButton) {
+        elements.deleteRepoButton.disabled = true;
+      }
+    } catch (_) {
+      // Best-effort
+    }
+  }
+
+  async function onSavedRepoSelectChange() {
+    const selectedId = elements.savedReposSelect?.value;
+    if (!selectedId) {
+      if (elements.deleteRepoButton) elements.deleteRepoButton.disabled = true;
+      return;
+    }
+    const found = (state.savedRepositories || []).find((r) => String(r.id) === String(selectedId));
+    if (!found) return;
+    elements.repositoryUrl.value = found.repository_url || "";
+    if (elements.deleteRepoButton) elements.deleteRepoButton.disabled = false;
+
+    if (state.job?.id) {
+      try {
+        const repoPayload = await api(`/api/repositories?job_id=${state.job.id}`);
+        const repos = Array.isArray(repoPayload.repositories) ? repoPayload.repositories : [];
+        const existingForJob = repos.find((r) => r.repository_url === found.repository_url);
+        if (existingForJob) {
+          await loadOverview(existingForJob.id);
+          return;
+        }
+        toast(`Assessing ${found.owner}/${found.name} for ${state.job.title}...`, "working");
+        await submitRepository(new Event("submit"));
+        return;
+      } catch (_) {
+        // Fall back to default overview
+      }
+    }
+    await loadOverview(found.id);
+  }
+
+  async function deleteCurrentRepository() {
+    const repoId = elements.savedReposSelect?.value || state.repository?.id;
+    if (!repoId) return;
+    const repoName = state.repository?.name || "this repository";
+    const confirmDelete = window.confirm(`Delete repository "${repoName}" and all its recorded snapshots?`);
+    if (!confirmDelete) return;
+    try {
+      await api(`/api/repositories/${repoId}`, { method: "DELETE" });
+      toast("Repository deleted.", "success");
+      state.repository = null;
+      state.snapshot = null;
+      state.history = [];
+      state.monitor = null;
+      state.events = [];
+      elements.repositoryUrl.value = "";
+      localStorage.removeItem(ACTIVE_REPOSITORY_KEY);
+      await loadSavedRepositories();
+      renderAll();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  }
+
   async function disconnectCurrentRepository() {
     if (!state.repository?.id) return;
     const confirmDisconnect = window.confirm(
@@ -761,10 +902,65 @@
       elements.repositoryUrl.value = "";
       elements.repositoryUrl.disabled = false;
       elements.connectRepositoryButton.disabled = false;
+      await loadSavedRepositories();
       renderAll();
     } catch (err) {
       toast(err.message, "error");
     }
+  }
+
+  async function fetchAndDisplayUserRepos(username) {
+    const cleanUser = username.replace(/^@/, "").trim();
+    if (!cleanUser) return;
+    if (elements.userReposDrawer) {
+      elements.userReposDrawer.hidden = false;
+      elements.userReposTitle.textContent = `Fetching public repositories for @${cleanUser}...`;
+      clear(elements.userReposList);
+    }
+    try {
+      const payload = await api(`/api/github/users/${cleanUser}/repositories`);
+      const repos = Array.isArray(payload.repositories) ? payload.repositories : [];
+      if (!repos.length) {
+        if (elements.userReposTitle) elements.userReposTitle.textContent = `No public repositories found for @${cleanUser}.`;
+        return;
+      }
+      if (elements.userReposTitle) {
+        elements.userReposTitle.textContent = `📁 Public repositories for @${cleanUser} (${repos.length} found) — Click to assess:`;
+      }
+      clear(elements.userReposList);
+      repos.forEach((r) => {
+        const chip = make("button", "user-repo-chip", r.name);
+        chip.type = "button";
+        if (r.language) {
+          const langSpan = make("span", "repo-lang", `(${r.language})`);
+          chip.append(langSpan);
+        }
+        chip.addEventListener("click", () => {
+          elements.repositoryUrl.value = r.html_url;
+          elements.userReposDrawer.hidden = true;
+          submitRepository(new Event("submit"));
+        });
+        elements.userReposList.append(chip);
+      });
+    } catch (err) {
+      if (elements.userReposTitle) elements.userReposTitle.textContent = `Could not fetch repositories for @${cleanUser}: ${err.message}`;
+    }
+  }
+
+  async function onBrowseReposClick() {
+    let val = elements.repositoryUrl.value.trim();
+    let username = "";
+    if (val) {
+      const match = val.match(/(?:github\.com\/|^@?)([a-zA-Z0-9-]+)(?:\/|$)/i);
+      if (match) username = match[1];
+    }
+    if (!username) {
+      username = window.prompt("Enter a GitHub username to fetch public repositories (e.g. vedantsable56):", "vedantsable56");
+    }
+    if (!username || !username.trim()) return;
+    const clean = username.trim().replace(/^@/, "");
+    elements.repositoryUrl.value = `https://github.com/${clean}`;
+    await fetchAndDisplayUserRepos(clean);
   }
 
   function startStatusRefresh() {
@@ -776,18 +972,15 @@
     event.preventDefault();
     setFeedback(elements.jobFeedback, "");
     const title = elements.jobTitle.value.trim();
-    const company = elements.jobCompany.value.trim() || "Company not specified";
+    const company = elements.jobCompany.value.trim();
+    const city = elements.jobCity ? elements.jobCity.value.trim() : "";
     const sourceUrl = elements.jobSourceUrl.value.trim();
     let description = elements.jobDescription.value.trim();
     if (!title) {
       setFeedback(elements.jobFeedback, "Enter a role title.", "error");
       return;
     }
-    if (!description && !sourceUrl) {
-      setFeedback(elements.jobFeedback, "Enter job-description requirements or a posting URL to fetch.", "error");
-      return;
-    }
-    setButtonLoading(elements.saveJobButton, true, description ? "Saving job" : "Fetching page");
+    setButtonLoading(elements.saveJobButton, true, description ? "Saving job" : "Preparing benchmark");
     try {
       if (!description && sourceUrl) {
         const fetched = await api("/api/jobs/fetch", { method: "POST", body: { source_url: sourceUrl } });
@@ -796,7 +989,9 @@
         toast("Job text fetched. Review it before saving.", "success");
         return;
       }
-      const body = { title, company, description };
+      const body = { title, description };
+      if (company) body.company = company;
+      if (city) body.city = city;
       if (sourceUrl) body.source_url = sourceUrl;
       const payload = await api("/api/jobs", {
         method: "POST",
@@ -806,13 +1001,17 @@
       elements.repositoryUrl.disabled = false;
       elements.connectRepositoryButton.disabled = false;
       elements.repositoryHelp.textContent = payload.warning || "Job saved. Connect or assess your GitHub repository.";
-      setFeedback(elements.jobFeedback, payload.warning || `${payload.job.skills?.length || 0} supported requirement${payload.job.skills?.length === 1 ? "" : "s"} extracted from the supplied text.`, payload.warning ? "error" : "success");
+      setFeedback(elements.jobFeedback, payload.warning || `${payload.job.skills?.length || 0} supported requirement${payload.job.skills?.length === 1 ? "" : "s"} established for ${payload.job.title}.`, payload.warning ? "error" : "success");
       await loadSavedJobs();
       if (elements.savedJobsSelect) {
         elements.savedJobsSelect.value = String(state.job.id);
       }
       renderAll();
       toast(payload.warning || "Job requirements saved.", payload.warning ? "warning" : "success");
+      if (elements.repositoryUrl && !state.repository) {
+        elements.repositoryUrl.scrollIntoView({ behavior: "smooth", block: "center" });
+        elements.repositoryUrl.focus();
+      }
     } catch (error) {
       setFeedback(elements.jobFeedback, error.message, "error");
       toast(error.message, "error");
@@ -822,11 +1021,20 @@
   }
 
   async function submitRepository(event) {
-    event.preventDefault();
+    if (event?.preventDefault) event.preventDefault();
     setFeedback(elements.repositoryFeedback, "");
-    const repositoryUrl = elements.repositoryUrl.value.trim();
+    let repositoryUrl = elements.repositoryUrl.value.trim();
+    if (!repositoryUrl && elements.savedReposSelect?.value) {
+      const selected = (state.savedRepositories || []).find(
+        (r) => String(r.id) === String(elements.savedReposSelect.value)
+      );
+      if (selected?.repository_url) {
+        repositoryUrl = selected.repository_url;
+        elements.repositoryUrl.value = repositoryUrl;
+      }
+    }
     if (!repositoryUrl) {
-      setFeedback(elements.repositoryFeedback, "Enter a GitHub repository URL.", "error");
+      setFeedback(elements.repositoryFeedback, "Enter a GitHub repository URL or select one from the dropdown.", "error");
       return;
     }
     let jobId = state.job?.id;
@@ -853,8 +1061,12 @@
       }
       await loadOverview(state.repository.id);
       await loadSavedJobs();
+      await loadSavedRepositories();
       setFeedback(elements.repositoryFeedback, payload.message || "Repository connected and assessed.", "success");
       toast(payload.message || "Repository connected and assessed.", "success");
+      if (elements.fitScore) {
+        elements.fitScore.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
     } catch (error) {
       setFeedback(elements.repositoryFeedback, error.message, "error");
       setConnection("error", error.message);
@@ -878,40 +1090,7 @@
       if (elements.userReposDrawer) elements.userReposDrawer.hidden = true;
       return;
     }
-    const username = profileMatch[1];
-    if (elements.userReposDrawer) {
-      elements.userReposDrawer.hidden = false;
-      elements.userReposTitle.textContent = `Fetching public repositories for @${username}...`;
-      clear(elements.userReposList);
-    }
-    try {
-      const payload = await api(`/api/github/users/${username}/repositories`);
-      const repos = Array.isArray(payload.repositories) ? payload.repositories : [];
-      if (!repos.length) {
-        if (elements.userReposTitle) elements.userReposTitle.textContent = `No public repositories found for @${username}.`;
-        return;
-      }
-      if (elements.userReposTitle) {
-        elements.userReposTitle.textContent = `📁 Public repositories for @${username} (${repos.length} found) — Click to select:`;
-      }
-      clear(elements.userReposList);
-      repos.forEach((r) => {
-        const chip = make("button", "user-repo-chip", r.name);
-        chip.type = "button";
-        if (r.language) {
-          const langSpan = make("span", "repo-lang", `(${r.language})`);
-          chip.append(langSpan);
-        }
-        chip.addEventListener("click", () => {
-          elements.repositoryUrl.value = r.html_url;
-          elements.userReposDrawer.hidden = true;
-          submitRepository(new Event("submit"));
-        });
-        elements.userReposList.append(chip);
-      });
-    } catch (err) {
-      if (elements.userReposTitle) elements.userReposTitle.textContent = `Could not fetch repositories for @${username}: ${err.message}`;
-    }
+    await fetchAndDisplayUserRepos(profileMatch[1]);
   }
 
   async function checkMonitor() {
@@ -1066,6 +1245,7 @@
       state.serverTelegram = health.telegram || null;
       state.serverJobSearch = health.job_search || null;
       await loadSavedJobs();
+      await loadSavedRepositories();
       const savedId = localStorage.getItem(ACTIVE_REPOSITORY_KEY);
       if (savedId && /^\d+$/.test(savedId)) {
         await loadOverview(savedId);
@@ -1084,6 +1264,12 @@
 
   if (elements.savedJobsSelect) elements.savedJobsSelect.addEventListener("change", onSavedJobSelectChange);
   if (elements.deleteJobButton) elements.deleteJobButton.addEventListener("click", deleteCurrentJob);
+  if (elements.savedReposSelect) elements.savedReposSelect.addEventListener("change", onSavedRepoSelectChange);
+  if (elements.deleteRepoButton) elements.deleteRepoButton.addEventListener("click", deleteCurrentRepository);
+  if (elements.browseReposButton) elements.browseReposButton.addEventListener("click", onBrowseReposClick);
+  if (elements.closeUserReposButton) elements.closeUserReposButton.addEventListener("click", () => {
+    if (elements.userReposDrawer) elements.userReposDrawer.hidden = true;
+  });
   if (elements.disconnectRepositoryButton) elements.disconnectRepositoryButton.addEventListener("click", disconnectCurrentRepository);
   elements.jobForm.addEventListener("submit", submitJob);
   elements.jobSearchForm.addEventListener("submit", searchJobs);

@@ -349,3 +349,29 @@ def test_connect_repository_without_job_selection_auto_benchmarks(tmp_path) -> N
         assert "Profile @demo resolved" in from_profile_response.json()["message"]
 
 
+def test_create_job_with_title_and_city_only_auto_synthesizes_benchmark(tmp_path) -> None:
+    from fastapi.testclient import TestClient
+    from tests.conftest import create_test_app, make_fake_inspection
+    initial = make_fake_inspection(source="import fastapi\napp = fastapi.FastAPI()\n")
+    fake_github = FakeAsyncGitHubClient({INITIAL_SHA: initial})
+    app = create_test_app(_settings(tmp_path), fake_github)
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/jobs",
+            json={
+                "title": "Python Internship",
+                "city": "Pune",
+            },
+        )
+        assert response.status_code == 201
+        job = response.json()["job"]
+        assert job["title"] == "Python Internship"
+        assert "Pune" in job["company"]
+        assert len(job["description"]) > 50
+        assert len(job["skills"]) > 0
+        skill_keys = [s["key"] for s in job["skills"]]
+        assert "python" in skill_keys
+        assert "api_development" in skill_keys
+
+

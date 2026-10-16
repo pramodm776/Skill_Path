@@ -501,6 +501,34 @@ class SQLiteStore:
             row = connection.execute(
                 "SELECT * FROM telegram_subscriptions WHERE repository_id = ?", (repository_id,)
             ).fetchone()
+            if not row:
+                repo = connection.execute(
+                    "SELECT owner, name FROM repositories WHERE id = ?", (repository_id,)
+                ).fetchone()
+                if repo:
+                    sibling = connection.execute(
+                        """
+                        SELECT ts.chat_id FROM telegram_subscriptions ts
+                        JOIN repositories r ON ts.repository_id = r.id
+                        WHERE r.owner = ? AND r.name = ? AND ts.active = 1 AND ts.chat_id IS NOT NULL
+                        LIMIT 1
+                        """,
+                        (repo["owner"], repo["name"]),
+                    ).fetchone()
+                    if sibling and sibling["chat_id"]:
+                        now = utc_now()
+                        connection.execute(
+                            """
+                            INSERT OR IGNORE INTO telegram_subscriptions
+                              (repository_id, pairing_token_hash, pairing_expires_at, chat_id, active,
+                               last_notified_at, last_error_message, created_at, updated_at)
+                            VALUES (?, NULL, NULL, ?, 1, NULL, NULL, ?, ?)
+                            """,
+                            (repository_id, sibling["chat_id"], now, now),
+                        )
+                        row = connection.execute(
+                            "SELECT * FROM telegram_subscriptions WHERE repository_id = ?", (repository_id,)
+                        ).fetchone()
         return self._telegram_subscription(row)
 
     def create_telegram_pairing(
