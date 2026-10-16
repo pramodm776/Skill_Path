@@ -110,7 +110,7 @@ class Settings:
                 "JSEARCH_API_URL", "https://jsearch.p.rapidapi.com"
             ).rstrip("/"),
             jsearch_timeout_seconds=_as_int(
-                os.getenv("JSEARCH_TIMEOUT_SECONDS"), default=15, minimum=3
+                os.getenv("JSEARCH_TIMEOUT_SECONDS"), default=30, minimum=3
             ),
             telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN") or None,
             telegram_webhook_secret=os.getenv("TELEGRAM_WEBHOOK_SECRET") or None,
