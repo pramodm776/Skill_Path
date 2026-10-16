@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Evidence-backed career assessment from a real job posting and GitHub repository."
+    />
+    <title>SkillPath AI | Evidence-led skill assessment</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to dashboard</a>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="SkillPath AI home">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48" fill="none">
+              <path d="M9 12.5 24 5l15 7.5v12.7c0 8.6-6.4 14.4-15 17.8C15.4 39.6 9 33.8 9 25.2V12.5Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
+              <path d="m16.2 24.4 5 5 10.8-11" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <span>
+            <strong>SkillPath AI</strong>
+            <small>Evidence, not assumptions</small>
+          </span>
+        </a>
+        <div class="topbar-status" id="connection-status" role="status" aria-live="polite">
+          <span class="status-dot status-dot--idle" aria-hidden="true"></span>
+          <span>Waiting for a job and repository</span>
+        </div>
+      </header>
+
+      <main id="main-content" class="main-content">
+        <section class="hero" aria-labelledby="page-title">
+          <div class="hero-copy">
+            <p class="eyebrow">Portfolio evidence, kept current</p>
+            <h1 id="page-title">Match what your code proves to the role you want.</h1>
+            <p class="hero-lede">
+              Connect a real job posting and GitHub repository. The assessment only reports evidence returned by the repository scan; it never turns a missing signal into a claim about you.
+            </p>
+          </div>
+          <aside class="hero-rule" aria-label="Assessment rule">
+            <span class="hero-rule__icon" aria-hidden="true">↗</span>
+            <div>
+              <strong>One live loop</strong>
+              <p>Job requirements → repository evidence → gaps → new commit → updated assessment.</p>
+            </div>
+          </aside>
+        </section>
+
+        <section class="onboarding" aria-label="Connect a job and repository">
+          <article class="panel intake-panel">
+            <div class="panel-heading">
+              <span class="step-number" aria-hidden="true">01</span>
+              <div>
+                <p class="section-kicker">Job requirements</p>
+                <h2>Start with the source</h2>
+              </div>
+            </div>
+            <p class="panel-intro">Use a real, publicly available job or internship posting. Its source link stays attached to every assessment.</p>
+
+            <details class="job-discovery" id="job-discovery">
+              <summary>Find a live posting with JSearch <span class="optional">optional, India-ready</span></summary>
+              <p>Search results only prefill this form. Review the returned URL and description, then save the selected posting yourself.</p>
+              <form id="job-search-form" class="job-search-form" novalidate>
+                <label>
+                  <span>Search terms</span>
+                  <input id="job-search-query" type="search" maxlength="160" placeholder="e.g. Python backend intern" />
+                </label>
+                <label>
+                  <span>Location <span class="optional">optional</span></span>
+                  <input id="job-search-location" type="text" maxlength="160" placeholder="e.g. Pune" />
+                </label>
+                <label>
+                  <span>Country</span>
+                  <input id="job-search-country" type="text" value="in" minlength="2" maxlength="2" aria-label="Two-letter country code" />
+                </label>
+                <button class="button button--quiet" type="submit" id="search-jobs-button"><span>Search postings</span></button>
+              </form>
+              <p class="form-feedback" id="job-search-feedback" role="status" aria-live="polite"></p>
+              <div class="job-search-results" id="job-search-results" aria-live="polite"></div>
+            </details>
+
+            <form id="job-form" novalidate>
+              <div class="form-grid">
+                <label>
+                  <span>Role title <em aria-hidden="true">*</em></span>
+                  <input id="job-title" name="title" type="text" autocomplete="organization-title" placeholder="e.g. Backend Engineering Intern" required />
+                </label>
+                <label>
+                  <span>Company <em aria-hidden="true">*</em></span>
+                  <input id="job-company" name="company" type="text" autocomplete="organization" placeholder="e.g. Acme Labs" required />
+                </label>
+                <label class="form-span-full">
+                  <span>Public posting URL <em aria-hidden="true">*</em></span>
+                  <input id="job-source-url" name="source_url" type="url" inputmode="url" autocomplete="url" placeholder="https://company.example/careers/role" required />
+                  <small>Required even when you paste the description manually.</small>
+                </label>
+                <label class="form-span-full">
+                  <span>Job-description text <span class="optional">optional when the server can fetch the page</span></span>
+                  <textarea id="job-description" name="description" rows="6" placeholder="Paste the requirements here if the posting cannot be fetched, or to make the demo reproducible."></textarea>
+                  <small>The app sends this text only to the local backend for requirement extraction.</small>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button class="button button--primary" type="submit" id="save-job-button">
+                  <span>Save job requirements</span>
+                  <span class="button-arrow" aria-hidden="true">→</span>
+                </button>
+                <p class="form-feedback" id="job-form-feedback" role="status" aria-live="polite"></p>
+              </div>
+            </form>
+          </article>
+
+          <article class="panel intake-panel intake-panel--repository" aria-labelledby="repository-heading">
+            <div class="panel-heading">
+              <span class="step-number" aria-hidden="true">02</span>
+              <div>
+                <p class="section-kicker">Repository evidence</p>
+                <h2 id="repository-heading">Connect the code</h2>
+              </div>
+            </div>
+            <p class="panel-intro">Use a repository URL. Authentication for private repositories belongs on the server, never in this page.</p>
+
+            <form id="repository-form" novalidate>
+              <label>
+                <span>GitHub repository URL <em aria-hidden="true">*</em></span>
+                <input id="repository-url" name="repository_url" type="url" inputmode="url" placeholder="https://github.com/owner/repository" required disabled />
+                <small id="repository-help">Save job requirements before connecting a repository.</small>
+              </label>
+              <div class="form-actions">
+                <button class="button button--secondary" type="submit" id="connect-repository-button" disabled>
+                  <span>Connect and assess</span>
+                  <span class="button-arrow" aria-hidden="true">→</span>
+                </button>
+                <p class="form-feedback" id="repository-form-feedback" role="status" aria-live="polite"></p>
+              </div>
+            </form>
+          </article>
+        </section>
+
+        <section class="notice notice--info" id="scope-notice" aria-label="Assessment scope">
+          <span class="notice-icon" aria-hidden="true">i</span>
+          <p><strong>How to read this dashboard:</strong> a skill marked “not demonstrated in this scope” means the scan did not return supporting evidence. It is not a verdict that the student does not have that skill.</p>
+        </section>
+
+        <section class="dashboard" aria-label="Assessment dashboard">
+          <div class="dashboard-heading">
+            <div>
+              <p class="section-kicker">Live assessment</p>
+              <h2>Evidence overview</h2>
+            </div>
+            <div class="context-links" id="context-links" aria-live="polite">
+              <span class="context-empty">No connected assessment yet</span>
+            </div>
+          </div>
+
+          <div class="summary-grid">
+            <article class="panel summary-card summary-card--fit" id="assessment-summary-card">
+              <div class="card-label-row">
+                <p class="card-label">Role fit</p>
+                <span class="data-state" id="assessment-state">Awaiting assessment</span>
+              </div>
+              <div class="fit-content">
+                <strong class="fit-score" id="fit-score">—</strong>
+                <div>
+                  <p class="fit-title" id="fit-title">No score received</p>
+                  <p class="muted" id="fit-description">A score is shown only when the assessment API returns its calculation or summary.</p>
+                </div>
+              </div>
+              <div class="fit-formula" id="fit-formula">No calculation has been reported.</div>
+            </article>
+
+            <article class="panel summary-card" id="repository-summary-card">
+              <div class="card-label-row">
+                <p class="card-label">Inspected repository</p>
+                <span class="data-state" id="repository-state">Not connected</span>
+              </div>
+              <dl class="facts-list" id="repository-facts">
+                <div><dt>Repository</dt><dd>—</dd></div>
+                <div><dt>Branch</dt><dd>—</dd></div>
+                <div><dt>Commit</dt><dd>—</dd></div>
+              </dl>
+            </article>
+
+            <article class="panel summary-card" id="monitor-summary-card">
+              <div class="card-label-row">
+                <p class="card-label">Change monitoring</p>
+                <span class="data-state" id="monitor-state">Not started</span>
+              </div>
+              <dl class="facts-list" id="monitor-facts">
+                <div><dt>Last checked</dt><dd>Not reported</dd></div>
+                <div><dt>Last assessed</dt><dd>Not reported</dd></div>
+                <div><dt>Next action</dt><dd>Connect a repository</dd></div>
+              </dl>
+              <div class="monitor-actions">
+                <button class="text-button" id="check-monitor-button" type="button" disabled>Check monitor now <span aria-hidden="true">↗</span></button>
+                <span class="monitor-note">Server polling status refreshes here automatically.</span>
+              </div>
+            </article>
+          </div>
+
+          <section class="panel reassessment-panel" id="reassessment-panel" aria-labelledby="reassessment-heading">
+            <div class="event-icon" id="event-icon" aria-hidden="true">↻</div>
+            <div class="event-copy">
+              <p class="section-kicker">Automatic reassessment event</p>
+              <h2 id="reassessment-heading">No repository event received</h2>
+              <p id="reassessment-message">Once the server detects a different commit SHA and completes reassessment, the before-and-after evidence will appear here.</p>
+              <div class="event-meta" id="reassessment-meta"></div>
+            </div>
+            <button class="button button--quiet" type="button" id="view-comparison-button" disabled>View comparison</button>
+          </section>
+
+          <section class="panel telegram-panel" id="telegram-panel" aria-labelledby="telegram-heading">
+            <div>
+              <p class="section-kicker">Optional commit alert</p>
+              <h2 id="telegram-heading">Telegram reassessment notification</h2>
+              <p id="telegram-description">Connect a repository to see whether server-side Telegram alerts are available.</p>
+              <div class="telegram-pairing" id="telegram-pairing" hidden></div>
+            </div>
+            <div class="telegram-actions">
+              <span class="data-state" id="telegram-state">Not connected</span>
+              <button class="button button--quiet" type="button" id="telegram-pair-button" disabled>Pair Telegram</button>
+            </div>
+          </section>
+
+          <section class="dashboard-section" aria-labelledby="skills-heading">
+            <div class="section-heading-row">
+              <div>
+                <p class="section-kicker">Assessment details</p>
+                <h2 id="skills-heading">Skills and repository evidence</h2>
+              </div>
+              <p class="section-note" id="skills-note">Evidence paths and excerpts appear only after inspection.</p>
+            </div>
+            <div class="skill-grid" id="skills-grid" aria-live="polite">
+              <div class="empty-state empty-state--wide">
+                <span class="empty-state-icon" aria-hidden="true">⌘</span>
+                <div>
+                  <h3>Nothing assessed yet</h3>
+                  <p>Connect a job posting and repository to receive evidence-backed skill assessments.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="dashboard-lower-grid">
+            <article class="panel history-panel" aria-labelledby="history-heading">
+              <div class="section-heading-row section-heading-row--compact">
+                <div>
+                  <p class="section-kicker">Assessment history</p>
+                  <h2 id="history-heading">Before and after</h2>
+                </div>
+                <button class="text-button" type="button" id="refresh-history-button" disabled>Refresh</button>
+              </div>
+              <p class="history-intro">Each item is a server-recorded assessment snapshot. Duplicate commits should not produce a second snapshot.</p>
+              <ol class="history-list" id="history-list" aria-live="polite">
+                <li class="history-empty">No snapshots received yet.</li>
+              </ol>
+            </article>
+
+            <article class="panel guidance-panel" aria-labelledby="guidance-heading">
+              <div class="section-heading-row section-heading-row--compact">
+                <div>
+                  <p class="section-kicker">Growth plan</p>
+                  <h2 id="guidance-heading">Evidence gaps and next tasks</h2>
+                </div>
+              </div>
+              <p class="guidance-disclaimer">Recommendations are future work, not achievements already proven by the repository.</p>
+              <div class="guidance-list" id="guidance-list" aria-live="polite">
+                <div class="history-empty">No evidence gaps or recommendations received yet.</div>
+              </div>
+            </article>
+          </section>
+
+          <section class="panel comparison-panel" id="comparison-panel" aria-labelledby="comparison-heading" hidden>
+            <div class="section-heading-row section-heading-row--compact">
+              <div>
+                <p class="section-kicker">Snapshot comparison</p>
+                <h2 id="comparison-heading">Evidence changes</h2>
+              </div>
+              <button class="icon-button" type="button" id="close-comparison-button" aria-label="Close comparison">×</button>
+            </div>
+            <div class="comparison-meta" id="comparison-meta"></div>
+            <div class="comparison-grid" id="comparison-grid"></div>
+          </section>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <p>SkillPath AI keeps credentials on the server. The browser receives only assessment data and public repository links returned by the API.</p>
+      </footer>
+    </div>
+
+    <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+    <script src="/static/script.js" defer></script>
+  </body>
+</html>
