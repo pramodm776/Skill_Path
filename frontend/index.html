@@ -33,6 +33,14 @@
         </div>
       </header>
 
+      <aside class="notice notice--error banner-unreachable" id="backend-offline-banner" hidden role="alert">
+        <span class="notice-icon" aria-hidden="true">⚠️</span>
+        <div>
+          <strong>Backend service unreachable:</strong>
+          <p>Cannot connect to the SkillPath AI backend on <code>http://127.0.0.1:8000</code>. Verify that the FastAPI server is running with <code>uvicorn backend.main:app</code>.</p>
+        </div>
+      </aside>
+
       <main id="main-content" class="main-content">
         <section class="hero" aria-labelledby="page-title">
           <div class="hero-copy">
@@ -60,11 +68,21 @@
                 <h2>Start with the source</h2>
               </div>
             </div>
-            <p class="panel-intro">Use a real, publicly available job or internship posting. Its source link stays attached to every assessment.</p>
+            <p class="panel-intro">Use a real, publicly available job or internship posting. Its source link stays attached to every assessment; company is optional context.</p>
+
+            <div class="saved-jobs-bar" id="saved-jobs-bar">
+              <label for="saved-jobs-select"><span>Saved job postings</span></label>
+              <div class="saved-jobs-controls">
+                <select id="saved-jobs-select" aria-label="Select a previously saved job">
+                  <option value="">-- Or select a saved job --</option>
+                </select>
+                <button class="button button--danger-quiet" type="button" id="delete-job-button" title="Delete selected job" disabled>Delete</button>
+              </div>
+            </div>
 
             <details class="job-discovery" id="job-discovery">
               <summary>Find a live posting with JSearch <span class="optional">optional, India-ready</span></summary>
-              <p>Search results only prefill this form. Review the returned URL and description, then save the selected posting yourself.</p>
+              <p>Choosing a result fills the role, company when available, source URL, and description. Review them, then save the selected posting yourself.</p>
               <form id="job-search-form" class="job-search-form" novalidate>
                 <label>
                   <span>Search terms</span>
@@ -91,13 +109,14 @@
                   <input id="job-title" name="title" type="text" autocomplete="organization-title" placeholder="e.g. Backend Engineering Intern" required />
                 </label>
                 <label>
-                  <span>Company <em aria-hidden="true">*</em></span>
-                  <input id="job-company" name="company" type="text" autocomplete="organization" placeholder="e.g. Acme Labs" required />
+                  <span>Company <span class="optional">optional</span></span>
+                  <input id="job-company" name="company" type="text" autocomplete="organization" placeholder="e.g. Acme Labs" />
+                  <small>Used only to label the assessment. JSearch fills it when available.</small>
                 </label>
                 <label class="form-span-full">
-                  <span>Public posting URL <em aria-hidden="true">*</em></span>
+                  <span>Source posting URL <em aria-hidden="true">*</em></span>
                   <input id="job-source-url" name="source_url" type="url" inputmode="url" autocomplete="url" placeholder="https://company.example/careers/role" required />
-                  <small>Required even when you paste the description manually.</small>
+                  <small>Required for traceability. JSearch fills it after you choose a result; paste it only for manual entry.</small>
                 </label>
                 <label class="form-span-full">
                   <span>Job-description text <span class="optional">optional when the server can fetch the page</span></span>
@@ -135,6 +154,9 @@
                 <button class="button button--secondary" type="submit" id="connect-repository-button" disabled>
                   <span>Connect and assess</span>
                   <span class="button-arrow" aria-hidden="true">→</span>
+                </button>
+                <button class="button button--danger-quiet" type="button" id="disconnect-repository-button" hidden>
+                  Disconnect repository
                 </button>
                 <p class="form-feedback" id="repository-form-feedback" role="status" aria-live="polite"></p>
               </div>
@@ -290,7 +312,7 @@
       </main>
 
       <footer class="site-footer">
-        <p>SkillPath AI keeps credentials on the server. The browser receives only assessment data and public repository links returned by the API.</p>
+        <p>SkillPath AI keeps credentials on the server. The browser receives only assessment data and public repository links returned by the API. · <a href="/docs" target="_blank" rel="noopener noreferrer">Interactive API Docs</a></p>
       </footer>
     </div>
 

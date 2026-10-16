@@ -6,6 +6,7 @@
 
   const state = {
     job: null,
+    savedJobs: [],
     repository: null,
     snapshot: null,
     history: [],
@@ -20,7 +21,10 @@
 
   const byId = (id) => document.getElementById(id);
   const elements = {
+    backendOfflineBanner: byId("backend-offline-banner"),
     connectionStatus: byId("connection-status"),
+    savedJobsSelect: byId("saved-jobs-select"),
+    deleteJobButton: byId("delete-job-button"),
     jobForm: byId("job-form"),
     jobTitle: byId("job-title"),
     jobCompany: byId("job-company"),
@@ -38,6 +42,7 @@
     repositoryForm: byId("repository-form"),
     repositoryUrl: byId("repository-url"),
     connectRepositoryButton: byId("connect-repository-button"),
+    disconnectRepositoryButton: byId("disconnect-repository-button"),
     repositoryHelp: byId("repository-help"),
     repositoryFeedback: byId("repository-form-feedback"),
     scopeNotice: byId("scope-notice"),
@@ -529,6 +534,12 @@
     renderGuidance();
     renderTelegram();
     renderScope();
+    if (elements.disconnectRepositoryButton) {
+      elements.disconnectRepositoryButton.hidden = !state.repository;
+    }
+    if (elements.deleteJobButton) {
+      elements.deleteJobButton.disabled = !state.job?.id;
+    }
     if (state.repository && state.snapshot) {
       setConnection("ready", `Watching ${state.repository.owner}/${state.repository.name} at ${shortSha(state.snapshot.commit_sha)}`);
     } else if (state.job) {
@@ -552,6 +563,20 @@
     state.events = Array.isArray(overview.events) ? overview.events : [];
     state.telegram = overview.telegram || null;
     state.telegramPairing = null;
+    if (state.job) {
+      if (elements.savedJobsSelect) {
+        elements.savedJobsSelect.value = String(state.job.id);
+      }
+      elements.jobTitle.value = state.job.title || "";
+      elements.jobCompany.value = state.job.company === "Company not specified" ? "" : (state.job.company || "");
+      elements.jobSourceUrl.value = state.job.source_url || "";
+      elements.jobDescription.value = state.job.description || "";
+      elements.repositoryUrl.disabled = false;
+      elements.connectRepositoryButton.disabled = false;
+    }
+    if (state.repository) {
+      elements.repositoryUrl.value = state.repository.repository_url || "";
+    }
     const monitor = await api(`/api/repositories/${repositoryId}/monitor`);
     state.monitor = monitor;
     if (includeHistory) await loadHistory();
@@ -574,12 +599,150 @@
       if (state.snapshot?.id && state.snapshot.id !== oldSnapshot) {
         await loadHistory();
         toast("A new assessment snapshot arrived from the repository monitor.", "success");
+        if (oldSnapshot) {
+          showComparison(state.snapshot.id, oldSnapshot);
+        }
       }
       renderAll();
     } catch (error) {
       setConnection("error", error.message);
     } finally {
       state.refreshBusy = false;
+    }
+  }
+
+  async function loadSavedJobs() {
+    try {
+      const payload = await api("/api/jobs");
+      state.savedJobs = Array.isArray(payload.jobs) ? payload.jobs : [];
+      if (!elements.savedJobsSelect) return;
+      clear(elements.savedJobsSelect);
+      const defaultOption = make("option", "", "-- Or select a saved job --");
+      defaultOption.value = "";
+      elements.savedJobsSelect.append(defaultOption);
+      state.savedJobs.forEach((j) => {
+        const title = j.company && j.company !== "Company not specified" ? `${j.title} (${j.company})` : j.title;
+        const opt = make("option", "", title);
+        opt.value = String(j.id);
+        elements.savedJobsSelect.append(opt);
+      });
+      if (state.job?.id) {
+        elements.savedJobsSelect.value = String(state.job.id);
+        if (elements.deleteJobButton) elements.deleteJobButton.disabled = false;
+      } else if (elements.deleteJobButton) {
+        elements.deleteJobButton.disabled = true;
+      }
+    } catch (_) {
+      // Best-effort
+    }
+  }
+
+  async function onSavedJobSelectChange() {
+    const selectedId = elements.savedJobsSelect.value;
+    if (!selectedId) {
+      state.job = null;
+      state.repository = null;
+      state.snapshot = null;
+      state.history = [];
+      state.monitor = null;
+      state.events = [];
+      if (elements.deleteJobButton) elements.deleteJobButton.disabled = true;
+      elements.jobTitle.value = "";
+      elements.jobCompany.value = "";
+      elements.jobSourceUrl.value = "";
+      elements.jobDescription.value = "";
+      elements.repositoryUrl.value = "";
+      elements.repositoryUrl.disabled = true;
+      elements.connectRepositoryButton.disabled = true;
+      elements.repositoryHelp.textContent = "Save or select job requirements before connecting a repository.";
+      localStorage.removeItem(ACTIVE_REPOSITORY_KEY);
+      renderAll();
+      return;
+    }
+    const found = state.savedJobs.find((j) => String(j.id) === String(selectedId));
+    if (!found) return;
+    state.job = found;
+    if (elements.deleteJobButton) elements.deleteJobButton.disabled = false;
+    elements.jobTitle.value = found.title || "";
+    elements.jobCompany.value = found.company === "Company not specified" ? "" : (found.company || "");
+    elements.jobSourceUrl.value = found.source_url || "";
+    elements.jobDescription.value = found.description || "";
+    elements.repositoryUrl.disabled = false;
+    elements.connectRepositoryButton.disabled = false;
+    elements.repositoryHelp.textContent = "Connect a GitHub repository to inspect evidence for this job.";
+
+    try {
+      const repoPayload = await api(`/api/repositories?job_id=${found.id}`);
+      const repos = Array.isArray(repoPayload.repositories) ? repoPayload.repositories : [];
+      if (repos.length > 0) {
+        const repo = repos[0];
+        elements.repositoryUrl.value = repo.repository_url || "";
+        await loadOverview(repo.id);
+      } else {
+        state.repository = null;
+        state.snapshot = null;
+        state.history = [];
+        state.monitor = null;
+        state.events = [];
+        elements.repositoryUrl.value = "";
+        localStorage.removeItem(ACTIVE_REPOSITORY_KEY);
+        renderAll();
+      }
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  }
+
+  async function deleteCurrentJob() {
+    if (!state.job?.id) return;
+    const confirmDelete = window.confirm(`Delete job "${state.job.title}" and any connected repositories and snapshot history?`);
+    if (!confirmDelete) return;
+    try {
+      await api(`/api/jobs/${state.job.id}`, { method: "DELETE" });
+      toast("Job deleted successfully.", "success");
+      state.job = null;
+      state.repository = null;
+      state.snapshot = null;
+      state.history = [];
+      state.monitor = null;
+      state.events = [];
+      localStorage.removeItem(ACTIVE_REPOSITORY_KEY);
+      elements.jobTitle.value = "";
+      elements.jobCompany.value = "";
+      elements.jobSourceUrl.value = "";
+      elements.jobDescription.value = "";
+      elements.repositoryUrl.value = "";
+      elements.repositoryUrl.disabled = true;
+      elements.connectRepositoryButton.disabled = true;
+      elements.repositoryHelp.textContent = "Save or select job requirements before connecting a repository.";
+      await loadSavedJobs();
+      renderAll();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  }
+
+  async function disconnectCurrentRepository() {
+    if (!state.repository?.id) return;
+    const confirmDisconnect = window.confirm(
+      `Disconnect repository "${state.repository.owner}/${state.repository.name}" and remove its snapshots and monitor events?`
+    );
+    if (!confirmDisconnect) return;
+    try {
+      await api(`/api/repositories/${state.repository.id}`, { method: "DELETE" });
+      toast("Repository disconnected.", "success");
+      state.repository = null;
+      state.snapshot = null;
+      state.history = [];
+      state.monitor = null;
+      state.events = [];
+      localStorage.removeItem(ACTIVE_REPOSITORY_KEY);
+      elements.repositoryUrl.value = "";
+      elements.repositoryUrl.disabled = false;
+      elements.connectRepositoryButton.disabled = false;
+      renderAll();
+    } catch (err) {
+      toast(err.message, "error");
     }
   }
 
@@ -592,11 +755,11 @@
     event.preventDefault();
     setFeedback(elements.jobFeedback, "");
     const title = elements.jobTitle.value.trim();
-    const company = elements.jobCompany.value.trim();
+    const company = elements.jobCompany.value.trim() || "Company not specified";
     const sourceUrl = elements.jobSourceUrl.value.trim();
     let description = elements.jobDescription.value.trim();
-    if (!title || !company || !sourceUrl) {
-      setFeedback(elements.jobFeedback, "Enter a role title, company, and public job-posting URL.", "error");
+    if (!title || !sourceUrl) {
+      setFeedback(elements.jobFeedback, "Enter a role title and source posting URL.", "error");
       return;
     }
     setButtonLoading(elements.saveJobButton, true, description ? "Saving job" : "Fetching page");
@@ -625,6 +788,10 @@
       elements.connectRepositoryButton.disabled = false;
       elements.repositoryHelp.textContent = payload.warning || "Job saved. Connect a GitHub repository to inspect it.";
       setFeedback(elements.jobFeedback, payload.warning || `${payload.job.skills?.length || 0} supported requirement${payload.job.skills?.length === 1 ? "" : "s"} extracted from the supplied text.`, payload.warning ? "error" : "success");
+      await loadSavedJobs();
+      if (elements.savedJobsSelect) {
+        elements.savedJobsSelect.value = String(state.job.id);
+      }
       renderAll();
       toast(payload.warning || "Job source and requirements saved.", payload.warning ? "warning" : "success");
     } catch (error) {
@@ -658,6 +825,7 @@
       state.snapshot = payload.snapshot;
       state.events = [];
       await loadOverview(state.repository.id);
+      await loadSavedJobs();
       setFeedback(elements.repositoryFeedback, payload.message || "Repository connected.", "success");
       toast(payload.message || "Repository connected and assessed.", "success");
     } catch (error) {
@@ -683,6 +851,9 @@
         toast(result.message || "Monitor check completed.");
       }
       await loadOverview(state.repository.id);
+      if (result.event === "reassessed" && state.history.length >= 2) {
+        showComparison(state.history[0].id, state.history[1].id);
+      }
     } catch (error) {
       toast(error.message, "error");
       await refreshConnectedState();
@@ -795,6 +966,8 @@
     try {
       const health = await api("/api/health");
       if (health.status !== "ok") throw new Error("The local backend did not report a healthy state.");
+      if (elements.backendOfflineBanner) elements.backendOfflineBanner.hidden = true;
+      await loadSavedJobs();
       const savedId = localStorage.getItem(ACTIVE_REPOSITORY_KEY);
       if (savedId && /^\d+$/.test(savedId)) {
         await loadOverview(savedId);
@@ -804,11 +977,15 @@
         setConnection("idle", "Waiting for a job and repository");
       }
     } catch (error) {
+      if (elements.backendOfflineBanner) elements.backendOfflineBanner.hidden = false;
       setConnection("error", error.message || "The local backend is unavailable.");
     }
     startStatusRefresh();
   }
 
+  if (elements.savedJobsSelect) elements.savedJobsSelect.addEventListener("change", onSavedJobSelectChange);
+  if (elements.deleteJobButton) elements.deleteJobButton.addEventListener("click", deleteCurrentJob);
+  if (elements.disconnectRepositoryButton) elements.disconnectRepositoryButton.addEventListener("click", disconnectCurrentRepository);
   elements.jobForm.addEventListener("submit", submitJob);
   elements.jobSearchForm.addEventListener("submit", searchJobs);
   elements.jobSearchResults.addEventListener("click", (event) => {
