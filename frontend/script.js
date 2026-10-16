@@ -35,6 +35,8 @@
     jobDescription: byId("job-description"),
     saveJobButton: byId("save-job-button"),
     jobFeedback: byId("job-form-feedback"),
+    jobDiscovery: byId("job-discovery"),
+    quickLiveJobsButton: byId("quick-live-jobs-button"),
     jobSearchForm: byId("job-search-form"),
     jobSearchQuery: byId("job-search-query"),
     jobSearchLocation: byId("job-search-location"),
@@ -293,59 +295,94 @@
   }
 
   function renderSkillCard(item) {
-    const card = make("article", `skill-card skill-card--${statusClass(item.status_code, item.status)}`);
+    const sc = statusClass(item.status_code, item.status);
+    const card = make("article", `skill-card skill-card--${sc}`);
     const header = make("div", "skill-card-header");
     header.append(make("h3", "", text(item.skill, "Unnamed requirement")));
-    header.append(make("span", `status-chip status-chip--${statusClass(item.status_code, item.status)}`, text(item.status, "Unreported")));
+    const icon = sc === "demonstrated" ? "✓ " : sc === "partial" ? "◐ " : sc === "awaiting" ? "⏳ " : "○ ";
+    header.append(make("span", `status-chip status-chip--${sc}`, `${icon}${text(item.status, "Unreported")}`));
     card.append(header);
+
     card.append(make("p", "skill-summary", item.explanation || "No explanation was returned for this requirement."));
 
-    const meta = make("div", "skill-meta");
-    meta.append(make("span", "", `Requirement: ${text(item.requirement_type, "required")}`));
-    meta.append(make("span", "", `Confidence: ${text(item.confidence, "not reported")}`));
-    if (item.changed_evidence?.length) meta.append(make("span", "", `${item.changed_evidence.length} changed evidence signal${item.changed_evidence.length === 1 ? "" : "s"}`));
-    card.append(meta);
-
+    const reqBox = make("div", "skill-req-box");
     const requirement = item.job_requirement;
     if (requirement?.source_excerpt) {
-      const source = make("p", "limitation");
-      source.append(make("strong", "", "Job requirement: "));
-      source.append(document.createTextNode(requirement.source_excerpt));
-      card.append(source);
+      const targetPill = make("div", "skill-pill skill-pill--target");
+      targetPill.append(make("strong", "", "🎯 Target requirement: "));
+      targetPill.append(document.createTextNode(requirement.source_excerpt));
+      reqBox.append(targetPill);
     }
     if (item.llm_interpretation) {
-      const interpretation = make("p", "limitation");
-      interpretation.append(make("strong", "", "Optional interpretation: "));
-      interpretation.append(document.createTextNode(item.llm_interpretation));
-      card.append(interpretation);
+      const insightPill = make("div", "skill-pill skill-pill--insight");
+      insightPill.append(make("strong", "", "💡 AI interpretation: "));
+      insightPill.append(document.createTextNode(item.llm_interpretation));
+      reqBox.append(insightPill);
     }
-    if (Array.isArray(item.limitations) && item.limitations.length) {
-      const limitation = make("p", "limitation");
-      limitation.append(make("strong", "", "Limit: "));
-      limitation.append(document.createTextNode(item.limitations[0]));
-      card.append(limitation);
+    card.append(reqBox);
+
+    const meta = make("div", "skill-meta");
+    meta.append(make("span", "", `Type: ${text(item.requirement_type, "required")}`));
+    meta.append(make("span", "", `Confidence: ${text(item.confidence, "not reported")}`));
+    if (item.changed_evidence?.length) {
+      meta.append(make("span", "skill-meta--changed", `⚡ ${item.changed_evidence.length} changed in latest commit`));
     }
+    card.append(meta);
 
     const evidence = Array.isArray(item.evidence) ? item.evidence : [];
     if (!evidence.length) {
-      card.append(make("p", "evidence-empty", "No validated repository evidence was returned for this requirement in the inspected scope."));
+      if (item.next_evidence_contract?.task) {
+        const nextTask = make("div", "skill-next-task");
+        nextTask.append(make("span", "next-task-badge", "⚡ Suggested Next Proof Task:"));
+        nextTask.append(make("p", "", item.next_evidence_contract.task));
+        card.append(nextTask);
+      } else {
+        card.append(make("p", "evidence-empty", "No validated repository code evidence found in the inspected scope."));
+      }
       return card;
     }
+
     const list = make("ul", "evidence-list");
-    evidence.forEach((entry) => {
-      const evidenceItem = make("li", "evidence-item");
+    const maxInitial = 2;
+    evidence.forEach((entry, idx) => {
+      const isExtra = idx >= maxInitial;
+      const evidenceItem = make("li", `evidence-item${isExtra ? " evidence-item--extra" : ""}`);
+      if (isExtra) evidenceItem.hidden = true;
+
       const evidenceHeader = make("div", "evidence-head");
-      const location = `${text(entry.path, "file")} · lines ${text(entry.start_line, "?")}-${text(entry.end_line, "?")}`;
-      const pathNode = entry.url ? externalLink(text(entry.path, "file"), entry.url, "evidence-file") : make("span", "evidence-file", text(entry.path, "file"));
-      evidenceHeader.append(pathNode, make("span", "evidence-line", `lines ${text(entry.start_line, "?")}-${text(entry.end_line, "?")}`));
+      const pathNode = entry.url
+        ? externalLink(`📄 ${text(entry.path, "file")}`, entry.url, "evidence-file")
+        : make("span", "evidence-file", `📄 ${text(entry.path, "file")}`);
+      evidenceHeader.append(pathNode);
+
+      const rightMeta = make("div", "evidence-head-right");
+      rightMeta.append(make("span", "evidence-line", `L${text(entry.start_line, "?")}-${text(entry.end_line, "?")}`));
+      if (entry.changed_in_commit) {
+        rightMeta.append(make("span", "evidence-badge-changed", "Modified"));
+      }
+      evidenceHeader.append(rightMeta);
       evidenceItem.append(evidenceHeader);
+
       evidenceItem.append(make("pre", "code-excerpt", text(entry.excerpt, "No excerpt returned.")));
-      const note = `${text(entry.kind, "validated evidence")}${entry.changed_in_commit ? " · changed in this commit" : ""}`;
-      evidenceItem.append(make("p", "evidence-note", note));
-      evidenceItem.title = location;
       list.append(evidenceItem);
     });
     card.append(list);
+
+    if (evidence.length > maxInitial) {
+      const extraCount = evidence.length - maxInitial;
+      const toggleButton = make("button", "evidence-expand-button", `+ Show ${extraCount} more evidence excerpt${extraCount === 1 ? "" : "s"}`);
+      toggleButton.type = "button";
+      toggleButton.addEventListener("click", () => {
+        const isExpanded = toggleButton.dataset.expanded === "true";
+        list.querySelectorAll(".evidence-item--extra").forEach((el) => {
+          el.hidden = isExpanded;
+        });
+        toggleButton.dataset.expanded = isExpanded ? "false" : "true";
+        toggleButton.textContent = isExpanded ? `+ Show ${extraCount} more evidence excerpt${extraCount === 1 ? "" : "s"}` : "- Hide additional excerpts";
+      });
+      card.append(toggleButton);
+    }
+
     return card;
   }
 
@@ -1119,28 +1156,37 @@
   }
 
   async function searchJobs(event) {
-    event.preventDefault();
-    const query = elements.jobSearchQuery.value.trim();
-    const country = elements.jobSearchCountry.value.trim().toLowerCase();
-    const location = elements.jobSearchLocation.value.trim();
+    if (event?.preventDefault) event.preventDefault();
+    let query = elements.jobSearchQuery.value.trim();
+    if (!query && elements.jobTitle?.value) {
+      query = elements.jobTitle.value.trim();
+      elements.jobSearchQuery.value = query;
+    }
+    const country = (elements.jobSearchCountry.value.trim() || "in").toLowerCase();
+    let location = elements.jobSearchLocation.value.trim();
+    if (!location && elements.jobCity?.value) {
+      location = elements.jobCity.value.trim();
+      elements.jobSearchLocation.value = location;
+    }
     if (query.length < 2 || !/^[a-z]{2}$/i.test(country)) {
-      setFeedback(elements.jobSearchFeedback, "Enter search terms and a two-letter country code, for example in.", "error");
+      setFeedback(elements.jobSearchFeedback, "Enter search terms or a role title above to find real-time jobs.", "error");
       return;
     }
     setFeedback(elements.jobSearchFeedback, "");
-    setButtonLoading(elements.searchJobsButton, true, "Searching");
+    setButtonLoading(elements.searchJobsButton, true, "Searching live jobs");
     try {
       const payload = await api("/api/job-search", {
         method: "POST",
         body: { query, country, location: location || null },
       });
-      state.jobSearchResults = Array.isArray(payload.results) ? payload.results : [];
+      const rawList = Array.isArray(payload.jobs) ? payload.jobs : (Array.isArray(payload.results) ? payload.results : []);
+      state.jobSearchResults = rawList;
       renderJobSearchResults();
       setFeedback(
         elements.jobSearchFeedback,
         state.jobSearchResults.length
-          ? `${state.jobSearchResults.length} result${state.jobSearchResults.length === 1 ? "" : "s"} returned. Select one only after reviewing its URL and text.`
-          : "No usable public posting URLs were returned. Paste a posting URL and description instead.",
+          ? `Found ${state.jobSearchResults.length} live tech job${state.jobSearchResults.length === 1 ? "" : "s"}. Click 'Use this posting' to automatically load requirements.`
+          : "No live postings returned for these keywords. Try broadening terms (e.g. 'Python Developer').",
         state.jobSearchResults.length ? "success" : "error"
       );
     } catch (error) {
@@ -1273,6 +1319,25 @@
   if (elements.disconnectRepositoryButton) elements.disconnectRepositoryButton.addEventListener("click", disconnectCurrentRepository);
   elements.jobForm.addEventListener("submit", submitJob);
   elements.jobSearchForm.addEventListener("submit", searchJobs);
+  if (elements.quickLiveJobsButton) {
+    elements.quickLiveJobsButton.addEventListener("click", () => {
+      if (elements.jobDiscovery) elements.jobDiscovery.open = true;
+      const title = elements.jobTitle.value.trim() || "Python Developer";
+      const city = elements.jobCity ? elements.jobCity.value.trim() : "";
+      if (elements.jobSearchQuery) elements.jobSearchQuery.value = title;
+      if (elements.jobSearchLocation && city) elements.jobSearchLocation.value = city;
+      elements.jobDiscovery?.scrollIntoView({ behavior: "smooth", block: "start" });
+      searchJobs(new Event("submit"));
+    });
+  }
+  if (elements.jobDiscovery) {
+    elements.jobDiscovery.addEventListener("toggle", () => {
+      if (elements.jobDiscovery.open && !elements.jobSearchQuery.value) {
+        if (elements.jobTitle.value) elements.jobSearchQuery.value = elements.jobTitle.value.trim();
+        if (elements.jobCity && elements.jobCity.value) elements.jobSearchLocation.value = elements.jobCity.value.trim();
+      }
+    });
+  }
   elements.jobSearchResults.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target.closest("button[data-job-search-index]") : null;
     if (!target) return;

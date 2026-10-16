@@ -543,9 +543,41 @@ label small {
 
 .form-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.9rem;
+  gap: 0.75rem;
   margin-top: 1.2rem;
+}
+
+.form-feedback {
+  flex-basis: 100%;
+  width: 100%;
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.live-job-search-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--paper-tint);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  margin-bottom: 0.5rem;
+}
+
+.live-job-hint {
+  font-size: 0.76rem;
+  color: var(--ink-muted);
+}
+
+.button--sm {
+  min-height: 36px;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.78rem;
 }
 
 .button {
@@ -1154,19 +1186,62 @@ label small {
   color: var(--ink);
 }
 
-.limitation {
-  margin: 0.8rem 0 0;
-  padding: 0.62rem 0.7rem;
-  border-left: 3px solid #b9c9df;
-  border-radius: 0 8px 8px 0;
-  background: #f7f9fc;
-  color: #596b84;
-  font-size: 0.75rem;
-  line-height: 1.48;
+/* Skill requirement pills */
+.skill-req-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
 }
 
-.limitation strong {
+.skill-pill {
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.skill-pill--target {
+  background: var(--paper-tint);
+  border-left: 3px solid var(--blue);
+  color: var(--ink-strong);
+}
+
+.skill-pill--insight {
+  background: rgba(139, 92, 246, 0.08);
+  border-left: 3px solid var(--violet);
+  color: var(--ink-strong);
+}
+
+.skill-meta--changed {
+  color: var(--teal) !important;
+  font-weight: 700;
+  background: var(--teal-soft) !important;
+}
+
+.skill-next-task {
+  margin-top: 0.8rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px dashed var(--amber);
+  border-radius: 8px;
+}
+
+.next-task-badge {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--amber);
+  margin-bottom: 0.25rem;
+}
+
+.skill-next-task p {
+  margin: 0;
+  font-size: 0.76rem;
   color: var(--ink);
+  line-height: 1.45;
 }
 
 .evidence-list {
@@ -1179,27 +1254,28 @@ label small {
 
 .evidence-item {
   overflow: hidden;
-  border: 1px solid #e0e7ef;
-  border-radius: 9px;
-  background: #fbfcfe;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0d1117;
 }
 
 .evidence-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.7rem;
-  padding: 0.48rem 0.6rem;
-  border-bottom: 1px solid #e5ebf2;
+  gap: 0.6rem;
+  padding: 0.45rem 0.65rem;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
 }
 
 .evidence-file {
   min-width: 0;
   overflow: hidden;
-  color: var(--blue-dark);
+  color: #58a6ff;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 0.72rem;
+  font-weight: 600;
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1210,41 +1286,71 @@ a.evidence-file:hover {
   text-underline-offset: 0.15rem;
 }
 
-.evidence-line {
+.evidence-head-right {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   flex: 0 0 auto;
-  color: var(--ink-faint);
+}
+
+.evidence-line {
+  color: #8b949e;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.65rem;
+  font-size: 0.66rem;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
   white-space: nowrap;
 }
 
+.evidence-badge-changed {
+  color: #3fb950;
+  font-size: 0.64rem;
+  font-weight: 700;
+  background: rgba(63, 185, 80, 0.15);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
 .code-excerpt {
-  max-height: 140px;
+  max-height: 150px;
   margin: 0;
   overflow: auto;
-  padding: 0.62rem;
-  background: #f6f8fb;
-  color: #354660;
+  padding: 0.65rem 0.75rem;
+  background: #0d1117;
+  color: #c9d1d9;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.69rem;
+  font-size: 0.71rem;
   line-height: 1.55;
   tab-size: 2;
   white-space: pre-wrap;
 }
 
-.evidence-note {
-  margin: 0;
-  padding: 0.5rem 0.6rem;
-  color: var(--ink-muted);
-  font-size: 0.72rem;
-  line-height: 1.45;
+.evidence-expand-button {
+  margin-top: 0.55rem;
+  width: 100%;
+  padding: 0.45rem;
+  background: var(--paper-tint);
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: var(--blue);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.evidence-expand-button:hover {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: var(--blue);
 }
 
 .evidence-empty {
   margin: 0.95rem 0 0;
   padding: 0.68rem 0.75rem;
   border-radius: 9px;
-  background: #f7f8fa;
+  background: var(--paper-tint);
+  border: 1px solid var(--line);
   color: var(--ink-muted);
   font-size: 0.75rem;
   line-height: 1.45;
@@ -2052,32 +2158,51 @@ a.evidence-file:hover {
     color: var(--ink-strong);
   }
 
-  .limitation {
-    background: var(--paper-tint);
-    border-left-color: var(--line-strong);
-    color: var(--ink-muted);
+  .skill-pill--target {
+    background: rgba(30, 58, 138, 0.25);
+    border-left-color: #3b82f6;
+    color: #93c5fd;
   }
 
-  .limitation strong {
-    color: var(--ink-strong);
+  .skill-pill--insight {
+    background: rgba(88, 28, 135, 0.25);
+    border-left-color: #a855f7;
+    color: #d8b4fe;
   }
 
   .evidence-item {
-    background: var(--paper-tint);
-    border-color: var(--line-strong);
+    background: #0d1117;
+    border-color: #30363d;
   }
 
   .evidence-head {
-    border-bottom-color: var(--line);
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
   }
 
   .evidence-file {
-    color: var(--blue-dark);
+    color: #58a6ff;
+  }
+
+  .evidence-head-right .evidence-line {
+    background: rgba(255, 255, 255, 0.08);
+    color: #8b949e;
   }
 
   .code-excerpt {
-    background: #090e17;
-    color: #e2e8f0;
+    background: #0d1117;
+    color: #c9d1d9;
+  }
+
+  .evidence-expand-button {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: #30363d;
+    color: #58a6ff;
+  }
+
+  .evidence-expand-button:hover {
+    background: rgba(88, 166, 255, 0.12);
+    border-color: #58a6ff;
   }
 
   .evidence-empty {

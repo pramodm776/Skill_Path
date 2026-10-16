@@ -53,6 +53,7 @@ class TelegramService:
         self.settings = settings
         self.store = store
         self.transport = transport
+        self._recent_notified_shas: dict[str, str] = {}
 
     def status(self, repository_id: int | None = None) -> dict[str, Any]:
         configured = bool(
@@ -209,6 +210,10 @@ class TelegramService:
         snapshot_id = snapshot.get("id")
         if not isinstance(snapshot_id, int):
             return {"sent": False, "reason": "invalid_snapshot"}
+        chat_id_str = str(subscription["chat_id"])
+        commit_sha_full = str(snapshot.get("commit_sha", ""))
+        if self._recent_notified_shas.get(chat_id_str) == commit_sha_full and commit_sha_full:
+            return {"sent": False, "reason": "already_notified"}
         if not self.store.claim_telegram_delivery(
             subscription_id=int(subscription["id"]),
             snapshot_id=snapshot_id,
@@ -248,6 +253,7 @@ class TelegramService:
                 error_message="Telegram delivery failed; the assessment snapshot remains available in the dashboard.",
             )
             return {"sent": False, "reason": "delivery_failed"}
+        self._recent_notified_shas[chat_id_str] = commit_sha_full
         self.store.finish_telegram_delivery(
             subscription_id=int(subscription["id"]),
             snapshot_id=snapshot_id,
