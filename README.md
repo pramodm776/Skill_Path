@@ -131,7 +131,19 @@ TELEGRAM_NOTIFICATIONS_ENABLED=false
 PUBLIC_BASE_URL=
 ```
 
-### 4. Start the Application
+### 4. Seed Demo Job Roles (Recommended)
+To pre-populate 4 production-grade job postings into your local database:
+```powershell
+python -m backend.seed_jobs
+```
+This adds:
+- `Python Cloud Backend Engineer` (FastAPI, SQL, Pytest, Docker, CI/CD)
+- `Full-Stack Web Developer` (React, TypeScript, REST APIs, Testing)
+- `AI / Generative AI Engineer` (Python, ML, RAG, Embeddings, LLM Integration)
+- `Systems Software Engineer` (Java, C++, SQL, Algorithms, Git)
+directly to your **"Saved job postings"** dropdown.
+
+### 5. Start the Application
 ```powershell
 python -m uvicorn backend.main:app --reload --port 8000
 ```
