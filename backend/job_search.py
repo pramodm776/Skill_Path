@@ -82,7 +82,9 @@ class JSearchClient:
                 follow_redirects=False,
                 transport=self.transport,
             ) as client:
-                response = await client.get("/search", params=params)
+                response = await client.get("/search-v2", params=params)
+                if response.status_code == 404:
+                    response = await client.get("/search", params=params)
         except httpx.HTTPError as error:
             raise AppError(
                 "job_search_unavailable",
@@ -122,19 +124,27 @@ class JSearchClient:
                 "Job discovery returned an unreadable response. Paste a real job-posting URL and description instead.",
                 502,
             ) from error
-        raw_items = payload.get("data", []) if isinstance(payload, dict) else []
+        data_field = payload.get("data", []) if isinstance(payload, dict) else []
+        if isinstance(data_field, dict):
+            raw_items = data_field.get("jobs", [])
+        elif isinstance(data_field, list):
+            raw_items = data_field
+        else:
+            raw_items = []
         if not isinstance(raw_items, list):
             raw_items = []
         results: list[dict[str, Any]] = []
         for item in raw_items[:MAX_RESULTS]:
             if not isinstance(item, dict):
                 continue
-            posting_url = _safe_public_url(item.get("job_apply_link")) or _safe_public_url(
-                item.get("job_google_link")
+            posting_url = (
+                _safe_public_url(item.get("job_apply_link"))
+                or _safe_public_url(item.get("link"))
+                or _safe_public_url(item.get("job_google_link"))
             )
-            title = item.get("job_title")
-            company = item.get("employer_name")
-            description = item.get("job_description")
+            title = item.get("job_title") or item.get("title")
+            company = item.get("employer_name") or item.get("company")
+            description = item.get("job_description") or item.get("description")
             if not isinstance(title, str) or not title.strip() or not isinstance(company, str) or not company.strip():
                 continue
             results.append(
@@ -145,9 +155,9 @@ class JSearchClient:
                     "description": description.strip()[:50_000]
                     if isinstance(description, str) and description.strip()
                     else "",
-                    "location": item.get("job_city") or item.get("job_country") or "",
-                    "posted_at": item.get("job_posted_at_datetime_utc") or "",
-                    "employment_type": item.get("job_employment_type") or "",
+                    "location": item.get("job_city") or item.get("job_country") or item.get("location") or "",
+                    "posted_at": item.get("job_posted_at_datetime_utc") or item.get("posted_at") or "",
+                    "employment_type": item.get("job_employment_type") or item.get("employment_type") or "",
                 }
             )
         return {
