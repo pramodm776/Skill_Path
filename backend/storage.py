@@ -287,6 +287,15 @@ class SQLiteStore:
             ).fetchone()
         return self._repository(row)
 
+    def find_repositories_by_full_name(self, owner: str, name: str) -> list[dict[str, Any]]:
+        """Return all monitored repositories matching owner/name across all jobs."""
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM repositories WHERE owner = ? AND name = ? AND monitor_enabled = 1 ORDER BY id ASC",
+                (owner, name),
+            ).fetchall()
+        return [self._repository(row) or {} for row in rows]
+
     def get_repository(self, repository_id: int) -> dict[str, Any] | None:
         with self._connection() as connection:
             row = connection.execute("SELECT * FROM repositories WHERE id = ?", (repository_id,)).fetchone()

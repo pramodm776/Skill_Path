@@ -24,6 +24,7 @@ Never describe a missing signal as a missing skill. The required wording is **no
 - Deterministic evidence verification in `backend/skills.py`.
 - SQLite snapshot/history store in `backend/storage.py`.
 - Commit-SHA polling and automatic reassessment in `backend/monitor.py`.
+- Optional GitHub push webhook in `POST /api/integrations/github/webhook`; when configured, it bypasses the polling cycle and triggers immediate reassessment on push events.
 - Optional OpenAI interpretation in `backend/llm.py`; controlled xAI fallback is allowed only for retryable OpenAI failures and may not create evidence, status, or citations.
 - Optional JSearch discovery in `backend/job_search.py`; a result must be reviewed and saved through normal job ingestion before it can be assessed.
 - Optional Telegram pairing in `backend/telegram.py`; it stores a one-time code hash and may notify only after automatic new-SHA reassessment.
@@ -73,7 +74,7 @@ Also manually verify the health endpoint and dashboard after changes to startup,
 
 ## Secrets and deployment
 
-Use local `.env` only; it is ignored by Git. Expected server-only values include `GITHUB_TOKEN`, `OPENAI_API_KEY`, `JSEARCH_API_KEY`, `XAI_API_KEY` (only if the Grok fallback is enabled), and Telegram webhook credentials (only if Telegram is enabled). The settings layer may contain placeholders for integrations, but a provider is active only when its feature flag is enabled. Azure deployment uses one Container Apps service plus Azure Files for the hackathon SQLite profile; production should replace that database with PostgreSQL before scale-out. Use Key Vault-backed application secrets and managed identity rather than an Azure client secret.
+Use local `.env` only; it is ignored by Git. Expected server-only values include `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET` (only if GitHub webhook is configured), `OPENAI_API_KEY`, `JSEARCH_API_KEY`, `XAI_API_KEY` (only if the Grok fallback is enabled), and Telegram webhook credentials (only if Telegram is enabled). The settings layer may contain placeholders for integrations, but a provider is active only when its feature flag is enabled. Azure deployment uses one Container Apps service plus Azure Files for the hackathon SQLite profile; production should replace that database with PostgreSQL before scale-out. Use Key Vault-backed application secrets and managed identity rather than an Azure client secret.
 
 ## Pitch differentiator
 
