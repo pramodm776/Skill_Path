@@ -52,11 +52,11 @@ The automatic reassessment flow has automated test coverage. A public repository
 
 ## Git workflow
 
-1. Clone `https://github.com/vedantsable56/Skill_Path.git` and pull `main` before starting work.
+1. Check whether remote `main` exists before starting work. Once initialized, clone `https://github.com/vedantsable56/Skill_Path.git` and pull `main`. Until then, coordinate with the release owner and use the published `feature/skillpath-mvp` baseline; do not initialize or force-push `main` yourself.
 2. Create one focused branch, for example `feature/job-discovery` or `feature/telegram-alerts`.
 3. Do not edit another teammate's assigned files without first coordinating in the pull request or team chat.
 4. Commit small, reviewable changes with a meaningful message. Never commit `.env`, `data/*.sqlite3`, tokens, or generated assets.
-5. Open a pull request to `main`. The owner runs the test suite and resolves conflicts before merging.
+5. Open a pull request to `main` after it is initialized. The owner runs the test suite and resolves conflicts before merging.
 6. Make a final, meaningful commit in the team-controlled demo repository during rehearsal; SkillPath AI must detect it automatically without the manual Analyse action.
 
 ## Merge gate

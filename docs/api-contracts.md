@@ -15,17 +15,22 @@ All error responses use this shape:
 | Method and route | Purpose |
 | --- | --- |
 | `GET /api/health` | Service, monitoring, and non-secret LLM, JSearch, and Telegram availability state. |
-| `POST /api/jobs` | Persist `{title, company, source_url, description}` and directly matched supported requirements. |
+| `POST /api/jobs` | Persist `{title, company?, source_url, description}` and directly matched supported requirements. `company` is optional context and is stored as `Company not specified` when omitted; `source_url` remains required for traceability. |
+| `GET /api/jobs` | Read all saved jobs ordered newest first. |
+| `GET /api/jobs/{id}` | Read a saved job and its retained URL. |
+| `PUT /api/jobs/{id}` | Update `{title, company?, source_url, description}` and re-extract required skills. |
+| `DELETE /api/jobs/{id}` | Delete job and cascade delete all associated repositories, snapshots, and events. |
 | `POST /api/jobs/fetch` | Best-effort, user-triggered public-page text fetch. The client may instead paste text. |
 | `POST /api/job-search` | Optional server-side JSearch discovery with `{query, country, location?, date_posted?}`. Results are reviewable suggestions only; none are persisted until `POST /api/jobs`. |
-| `GET /api/jobs/{id}` | Read a saved job and its retained URL. |
 | `POST /api/repositories` | Connect `{job_id, repository_url}`, perform the initial GitHub inspection, and store the first snapshot. |
+| `GET /api/repositories` | Read repositories, optionally filtered by `?job_id={id}`. |
 | `GET /api/repositories/{id}/overview` | Current job, repository metadata, latest snapshot, and monitoring events. |
 | `POST /api/repositories/{id}/scan` | Explicit manual re-scan; duplicate SHA snapshots are not created. |
 | `GET /api/repositories/{id}/history` | Summary of immutable snapshots, newest first. |
 | `GET /api/repositories/{id}/monitor` | Polling state, timestamps, safe error state, and recent events. |
 | `PUT /api/repositories/{id}/monitor` | Enable or pause monitoring with `{enabled}`. |
 | `POST /api/repositories/{id}/monitor/check` | Invoke the polling code path immediately for demo/testing; a new SHA is automatically reassessed. |
+| `DELETE /api/repositories/{id}` | Disconnect and remove repository, cascading to snapshots, monitor events, and Telegram subscriptions. |
 | `GET /api/repositories/{id}/telegram` | Safe Telegram availability/pairing state only. Never returns a chat ID, token, or webhook secret. |
 | `POST /api/repositories/{id}/telegram/pair` | Create one expiring `/start` pairing command for an enabled Telegram integration. The server stores only its hash. |
 | `POST /api/integrations/telegram/webhook` | Telegram-only webhook. Requires the configured `X-Telegram-Bot-Api-Secret-Token` header and accepts `/start <code>` or `/stop`; free-form messages are discarded. |

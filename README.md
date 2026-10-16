@@ -13,7 +13,7 @@ The product is intentionally conservative: no evidence is ever treated as proof 
 
 ## What works
 
-- Saves a job title, company, real public source URL, and pasted description. There is also a best-effort page-text fetch helper; pasted text remains the reliable fallback.
+- Saves a job title, optional company context, real public source URL, and pasted description. There is also a best-effort page-text fetch helper; pasted text remains the reliable fallback.
 - Normalizes only directly mentioned, supported skills and retains the original job-description excerpt.
 - Uses the real GitHub REST API for public repositories and server-side-token private repositories.
 - Reads the default branch, commit SHA/link, tree, and a bounded subset of text files without cloning or executing repository code.
@@ -43,11 +43,11 @@ From the workspace root:
 
 ```powershell
 cd "C:\Users\HP\OneDrive\Desktop\hackathon-project"
-py -3.9 -m venv .venv
+py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-Copy-Item .env.example .env
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 

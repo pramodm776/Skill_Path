@@ -34,7 +34,7 @@ MAX_FETCHED_PAGE_BYTES = 750_000
 
 class JobCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=240)
-    company: str = Field(min_length=1, max_length=240)
+    company: Optional[str] = Field(default=None, max_length=240)
     source_url: str = Field(min_length=8, max_length=2_048)
     description: str = Field(min_length=1, max_length=MAX_JOB_DESCRIPTION_CHARS)
 
@@ -57,6 +57,13 @@ class RepositoryCreateRequest(BaseModel):
 
 class MonitorUpdateRequest(BaseModel):
     enabled: bool
+
+
+class JobUpdateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=240)
+    company: Optional[str] = Field(default=None, max_length=240)
+    source_url: str = Field(min_length=8, max_length=2_048)
+    description: str = Field(min_length=1, max_length=MAX_JOB_DESCRIPTION_CHARS)
 
 
 class PageTextExtractor(HTMLParser):
@@ -273,6 +280,7 @@ def create_app(
     async def create_job(payload: JobCreateRequest) -> dict[str, Any]:
         source_url = validate_public_http_url(payload.source_url, label="Job posting URL")
         description = payload.description.strip()
+        company = payload.company.strip() if isinstance(payload.company, str) else ""
         if len(description) < 30:
             raise AppError(
                 "job_description_too_short",
@@ -282,7 +290,7 @@ def create_app(
         skills = extract_job_skills(description)
         job = store.create_job(
             title=payload.title.strip(),
-            company=payload.company.strip(),
+            company=company or "Company not specified",
             source_url=source_url,
             description=description,
             skills=skills,
@@ -308,12 +316,74 @@ def create_app(
             date_posted=payload.date_posted,
         )
 
+    @app.get("/api/jobs")
+    async def list_jobs() -> dict[str, Any]:
+        jobs = store.list_jobs()
+        return {"jobs": jobs}
+
     @app.get("/api/jobs/{job_id}")
     async def get_job(job_id: int) -> dict[str, Any]:
         job = store.get_job(job_id)
         if not job:
             raise AppError("job_not_found", "Job was not found.", 404)
         return {"job": job}
+
+    @app.put("/api/jobs/{job_id}")
+    async def update_job(job_id: int, payload: JobUpdateRequest) -> dict[str, Any]:
+        existing = store.get_job(job_id)
+        if not existing:
+            raise AppError("job_not_found", "Job was not found.", 404)
+        source_url = validate_public_http_url(payload.source_url, label="Job posting URL")
+        description = payload.description.strip()
+        company = payload.company.strip() if isinstance(payload.company, str) else ""
+        if len(description) < 30:
+            raise AppError(
+                "job_description_too_short",
+                "Paste enough job-description text to identify real requirements; the source URL will be retained.",
+                422,
+            )
+        skills = extract_job_skills(description)
+        job = store.update_job(
+            job_id,
+            title=payload.title.strip(),
+            company=company or "Company not specified",
+            source_url=source_url,
+            description=description,
+            skills=skills,
+        )
+        if not job:
+            raise AppError("job_not_found", "Job was not found.", 404)
+        warning = None
+        if not skills:
+            warning = (
+                "No supported skill phrases were extracted from the updated description. "
+                "Add explicit skill requirements before connecting a repository."
+            )
+        return {"job": job, "warning": warning}
+
+    @app.delete("/api/jobs/{job_id}")
+    async def delete_job(job_id: int) -> dict[str, Any]:
+        if not store.get_job(job_id):
+            raise AppError("job_not_found", "Job was not found.", 404)
+        store.delete_job(job_id)
+        return {"deleted": True, "job_id": job_id}
+
+    @app.get("/api/repositories")
+    async def list_repositories(job_id: Optional[int] = None) -> dict[str, Any]:
+        if job_id is not None:
+            if not store.get_job(job_id):
+                raise AppError("job_not_found", "Job was not found.", 404)
+            repositories = store.list_repositories(job_id)
+        else:
+            repositories = store.list_repositories()
+        return {"repositories": [_public_repository(repo) for repo in repositories]}
+
+    @app.delete("/api/repositories/{repository_id}")
+    async def delete_repository(repository_id: int) -> dict[str, Any]:
+        if not store.get_repository(repository_id):
+            raise AppError("repository_not_found", "Repository was not found.", 404)
+        store.delete_repository(repository_id)
+        return {"deleted": True, "repository_id": repository_id}
 
     @app.post("/api/repositories", status_code=201)
     async def connect_repository(payload: RepositoryCreateRequest) -> dict[str, Any]:

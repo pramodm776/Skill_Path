@@ -8,7 +8,7 @@
 
 ## Demo flow
 
-1. **Job source (45 seconds):** Save the title, company, public URL, and description. Point out the preserved URL and source excerpts next to normalized requirements. Do not claim requirements absent from the text.
+1. **Job source (45 seconds):** Save the title, optional company context, public URL, and description. Point out the preserved URL and source excerpts next to normalized requirements. Do not claim requirements absent from the text.
 2. **Repository evidence (75 seconds):** Connect the public repository. Show the default branch, inspected commit SHA, bounded-scan scope, file paths, excerpts, line references, and limitations. Highlight any SQL/testing gaps as **not demonstrated in this inspected scope**.
 3. **Automatic monitor (30 seconds):** Show the monitoring card and initial snapshot in history. Explain that the server polls GitHub and snapshots are unique by SHA.
 4. **Real GitHub commit (45 seconds):** In the controlled repository, add a real SQL query or automated test, commit, and push it. For example:
