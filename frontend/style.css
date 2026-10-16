@@ -1836,6 +1836,55 @@ a.evidence-file:hover {
   font-size: 0.85em;
 }
 
+/* Responsive breakpoints for mobile & tablet */
+@media (max-width: 860px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .onboarding {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reassessment-panel {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .telegram-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .telegram-actions {
+    justify-items: start;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .topbar-status {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Dark mode theme overrides */
 @media (prefers-color-scheme: dark) {
   :root {

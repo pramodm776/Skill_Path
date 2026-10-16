@@ -16,57 +16,28 @@ from backend.storage import SQLiteStore
 from backend.telegram import TelegramService
 
 
+from tests.conftest import make_fake_inspection, make_test_settings
+
+
 def _settings(tmp_path, **overrides: Any) -> Settings:
-    values: dict[str, Any] = {
+    defaults: dict[str, Any] = {
         "database_path": str(tmp_path / "integrations.sqlite3"),
-        "github_token": None,
-        "github_api_url": "https://api.github.invalid",
-        "github_timeout_seconds": 3,
-        "github_max_files": 20,
-        "github_max_file_bytes": 100_000,
-        "github_max_total_bytes": 500_000,
-        "poll_interval_seconds": 10,
         "monitoring_enabled": False,
-        "openai_api_key": None,
         "openai_model": "test-openai-model",
-        "enable_llm_explanations": False,
-        "xai_api_key": None,
-        "xai_api_url": "https://api.x.ai/v1",
-        "xai_model": None,
-        "enable_xai_fallback": False,
-        "jsearch_api_key": None,
-        "jsearch_api_url": "https://jsearch.p.rapidapi.com",
-        "jsearch_timeout_seconds": 3,
-        "telegram_bot_token": None,
-        "telegram_webhook_secret": None,
-        "telegram_api_url": "https://api.telegram.org",
-        "telegram_notifications_enabled": False,
-        "azure_key_vault_url": None,
-        "applicationinsights_connection_string": None,
-        "public_base_url": "https://skillpath.example",
-        "telegram_bot_username": "SkillPathTestBot",
-        "telegram_pairing_ttl_seconds": 600,
-        "telegram_timeout_seconds": 3,
     }
-    values.update(overrides)
-    return Settings(**values)
+    defaults.update(overrides)
+    return make_test_settings(tmp_path, **defaults)
 
 
 def _inspection(source: str) -> dict[str, Any]:
-    return {
-        "commit_sha": "a" * 40,
-        "commit_url": "https://github.com/demo/rag/commit/" + "a" * 40,
-        "files": [
-            {
-                "path": "src/app.py",
-                "content": source,
-                "size": len(source.encode("utf-8")),
-                "html_url": "https://github.com/demo/rag/blob/" + "a" * 40 + "/src/app.py",
-                "context_only": False,
-            }
-        ],
-        "inspection": {"inspected_file_count": 1, "skipped": [], "tree_truncated": False},
-    }
+    return make_fake_inspection(
+        sha="a" * 40,
+        source=source,
+        path="src/app.py",
+        repo_url="https://github.com/demo/rag",
+        owner="demo",
+        name="rag",
+    )
 
 
 def _assessment() -> dict[str, Any]:
