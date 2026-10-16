@@ -34,6 +34,7 @@ All error responses use this shape:
 | `GET /api/repositories/{id}/telegram` | Safe Telegram availability/pairing state only. Never returns a chat ID, token, or webhook secret. |
 | `POST /api/repositories/{id}/telegram/pair` | Create one expiring `/start` pairing command for an enabled Telegram integration. The server stores only its hash. |
 | `POST /api/integrations/telegram/webhook` | Telegram-only webhook. Requires the configured `X-Telegram-Bot-Api-Secret-Token` header and accepts `/start <code>` or `/stop`; free-form messages are discarded. |
+| `POST /api/integrations/github/webhook` | GitHub push webhook. Verifies `X-Hub-Signature-256` when `GITHUB_WEBHOOK_SECRET` is set. On push, finds all tracked repos matching `repository.full_name` and triggers immediate reassessment. Responds to `ping` with acknowledgment; ignores other event types. |
 | `GET /api/assessments/{id}` | Full stored assessment snapshot. |
 | `GET /api/assessments/{current}/compare/{previous}` | Validated evidence and status differences for two snapshots of the same repository. |
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import hmac
 import ipaddress
 import re
 from contextlib import asynccontextmanager
@@ -271,6 +273,10 @@ def create_app(
             "status": "ok",
             "service": "SkillPath AI",
             "monitoring_enabled": bool(settings.monitoring_enabled and start_monitor),
+            "github_webhook": {
+                "enabled": True,
+                "signature_verification": bool(settings.github_webhook_secret),
+            },
             "llm": llm_interpreter.status(),
             "job_search": job_search_client.status(),
             "telegram": telegram_service.status(),
@@ -561,6 +567,112 @@ def create_app(
         await telegram_service.handle_webhook_update(update)
         return {"ok": True}
 
+    @app.post("/api/integrations/github/webhook")
+    async def github_webhook(request: Request) -> dict[str, Any]:
+        """Receive GitHub push events and trigger immediate reassessment.
+
+        Verifies the X-Hub-Signature-256 header when GITHUB_WEBHOOK_SECRET is set.
+        When no secret is configured, the endpoint accepts any payload (dev mode).
+        """
+        # --- Signature verification ---
+        if settings.github_webhook_secret:
+            signature_header = request.headers.get("X-Hub-Signature-256", "")
+            body = await request.body()
+            expected = "sha256=" + hmac.new(
+                settings.github_webhook_secret.encode("utf-8"),
+                body,
+                hashlib.sha256,
+            ).hexdigest()
+            if not hmac.compare_digest(expected, signature_header):
+                raise AppError(
+                    "github_webhook_unauthorized",
+                    "GitHub webhook signature verification failed.",
+                    401,
+                )
+            try:
+                payload = await request.json()
+            except ValueError as error:
+                raise AppError(
+                    "invalid_github_webhook",
+                    "GitHub sent an invalid webhook payload.",
+                    422,
+                ) from error
+        else:
+            try:
+                payload = await request.json()
+            except ValueError as error:
+                raise AppError(
+                    "invalid_github_webhook",
+                    "GitHub sent an invalid webhook payload.",
+                    422,
+                ) from error
+
+        if not isinstance(payload, dict):
+            raise AppError("invalid_github_webhook", "GitHub sent an invalid webhook payload.", 422)
+
+        # --- Only handle push events ---
+        event_type = request.headers.get("X-GitHub-Event", "")
+        if event_type == "ping":
+            return {"ok": True, "event": "ping", "message": "Webhook configured successfully."}
+        if event_type != "push":
+            return {"ok": True, "event": event_type, "message": "Event type ignored; only push events trigger reassessment."}
+
+        # --- Extract repository identity ---
+        repo_info = payload.get("repository", {})
+        full_name = repo_info.get("full_name", "") if isinstance(repo_info, dict) else ""
+        if not full_name or "/" not in full_name:
+            return {"ok": True, "event": "push", "message": "Push event did not include a recognizable repository."}
+
+        owner, name = full_name.split("/", 1)
+
+        # --- Find all tracked repositories matching this owner/name ---
+        matched_repositories = store.find_repositories_by_full_name(owner, name)
+        if not matched_repositories:
+            return {
+                "ok": True,
+                "event": "push",
+                "repository": full_name,
+                "message": "No tracked repositories match this push event.",
+                "reassessed": 0,
+            }
+
+        # --- Trigger reassessment for each matched repository ---
+        results: list[dict[str, Any]] = []
+        for repository in matched_repositories:
+            repository_id = int(repository["id"])
+            try:
+                result = await monitor.check_repository(repository_id, origin="github_webhook")
+                results.append({
+                    "repository_id": repository_id,
+                    "job_id": repository.get("job_id"),
+                    "event": result.get("event", "unknown"),
+                    "commit_sha": result.get("commit_sha"),
+                })
+            except AppError as error:
+                results.append({
+                    "repository_id": repository_id,
+                    "job_id": repository.get("job_id"),
+                    "event": "error",
+                    "error_code": error.code,
+                    "message": error.message,
+                })
+            except Exception:
+                results.append({
+                    "repository_id": repository_id,
+                    "job_id": repository.get("job_id"),
+                    "event": "error",
+                    "error_code": "webhook_unexpected_error",
+                    "message": "Reassessment encountered an unexpected error.",
+                })
+
+        return {
+            "ok": True,
+            "event": "push",
+            "repository": full_name,
+            "reassessed": sum(1 for r in results if r["event"] == "reassessed"),
+            "results": results,
+        }
+ 
     @app.get("/api/assessments/{snapshot_id}")
     async def get_assessment(snapshot_id: int) -> dict[str, Any]:
         snapshot = store.get_snapshot(snapshot_id)

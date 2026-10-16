@@ -590,3 +590,149 @@ def test_job_and_repository_crud_lifecycle(tmp_path) -> None:
         assert client.delete("/api/repositories/99999").status_code == 404
         assert client.get("/api/repositories?job_id=99999").status_code == 404
 
+
+def test_github_webhook_push_triggers_reassessment(tmp_path) -> None:
+    """A GitHub push webhook triggers immediate reassessment without waiting for the poll cycle."""
+    initial = _inspection(
+        INITIAL_SHA,
+        "from pathlib import Path\n\n"
+        "def read_project_name() -> str:\n"
+        "    return Path('README.md').stem\n",
+    )
+    updated = _inspection(
+        UPDATED_SHA,
+        "from fastapi import FastAPI\n\n"
+        "app = FastAPI()\n\n"
+        "@app.get('/health')\n"
+        "def health() -> dict[str, str]:\n"
+        "    return {'status': 'ok'}\n",
+    )
+    fake_github = FakeAsyncGitHubClient({INITIAL_SHA: initial, UPDATED_SHA: updated})
+    fake_github.comparisons[(INITIAL_SHA, UPDATED_SHA)] = [
+        {"path": "src/server.py", "status": "modified"}
+    ]
+    app = _create_app(_settings(tmp_path), fake_github)
+
+    with TestClient(app) as client:
+        repository_id, connected = _create_job_and_repository(client)
+        assert connected["created_repository"] is True
+
+        # Simulate a GitHub push event with a new commit
+        fake_github.current_sha = UPDATED_SHA
+        push_payload = {
+            "ref": "refs/heads/main",
+            "after": UPDATED_SHA,
+            "repository": {
+                "full_name": "demo/portfolio",
+                "html_url": REPOSITORY_URL,
+            },
+        }
+        webhook_response = client.post(
+            "/api/integrations/github/webhook",
+            json=push_payload,
+            headers={"X-GitHub-Event": "push"},
+        )
+        assert webhook_response.status_code == 200
+        webhook_data = webhook_response.json()
+        assert webhook_data["ok"] is True
+        assert webhook_data["event"] == "push"
+        assert webhook_data["repository"] == "demo/portfolio"
+        assert webhook_data["reassessed"] == 1
+        assert webhook_data["results"][0]["event"] == "reassessed"
+        assert webhook_data["results"][0]["commit_sha"] == UPDATED_SHA
+
+        # Verify the snapshot was actually created
+        history_response = client.get(f"/api/repositories/{repository_id}/history")
+        assert history_response.status_code == 200
+        history = history_response.json()["history"]
+        assert len(history) == 2
+        assert history[0]["commit_sha"] == UPDATED_SHA
+
+        # Test ping event
+        ping_response = client.post(
+            "/api/integrations/github/webhook",
+            json={"zen": "Keep it logically awesome."},
+            headers={"X-GitHub-Event": "ping"},
+        )
+        assert ping_response.status_code == 200
+        assert ping_response.json()["event"] == "ping"
+
+        # Test untracked repository
+        untracked_response = client.post(
+            "/api/integrations/github/webhook",
+            json={
+                "ref": "refs/heads/main",
+                "repository": {"full_name": "unknown/repo"},
+            },
+            headers={"X-GitHub-Event": "push"},
+        )
+        assert untracked_response.status_code == 200
+        assert untracked_response.json()["reassessed"] == 0
+
+        # Test ignored event type
+        issues_response = client.post(
+            "/api/integrations/github/webhook",
+            json={"action": "opened"},
+            headers={"X-GitHub-Event": "issues"},
+        )
+        assert issues_response.status_code == 200
+        assert issues_response.json()["event"] == "issues"
+
+
+def test_github_webhook_with_signature_verification(tmp_path) -> None:
+    """When GITHUB_WEBHOOK_SECRET is set, the webhook rejects unsigned requests."""
+    import hashlib
+    import hmac as hmac_module
+    import json as json_module
+
+    initial = _inspection(INITIAL_SHA, "from pathlib import Path\n")
+    fake_github = FakeAsyncGitHubClient({INITIAL_SHA: initial})
+    base = _settings(tmp_path)
+    # Create settings with webhook secret by replacing the field
+    settings_with_secret = Settings(
+        **{
+            **{f: getattr(base, f) for f in base.__dataclass_fields__},
+            "github_webhook_secret": "test-github-secret-123",
+        }
+    )
+    app = _create_app(settings_with_secret, fake_github)
+
+    with TestClient(app) as client:
+        # Request without signature should be rejected
+        no_sig_response = client.post(
+            "/api/integrations/github/webhook",
+            json={"zen": "test"},
+            headers={"X-GitHub-Event": "ping"},
+        )
+        assert no_sig_response.status_code == 401
+
+        # Request with wrong signature should be rejected
+        wrong_sig_response = client.post(
+            "/api/integrations/github/webhook",
+            json={"zen": "test"},
+            headers={
+                "X-GitHub-Event": "ping",
+                "X-Hub-Signature-256": "sha256=wrong",
+            },
+        )
+        assert wrong_sig_response.status_code == 401
+
+        # Request with correct signature should succeed
+        body = json_module.dumps({"zen": "test"}).encode("utf-8")
+        correct_sig = "sha256=" + hmac_module.new(
+            b"test-github-secret-123",
+            body,
+            hashlib.sha256,
+        ).hexdigest()
+        correct_response = client.post(
+            "/api/integrations/github/webhook",
+            content=body,
+            headers={
+                "X-GitHub-Event": "ping",
+                "X-Hub-Signature-256": correct_sig,
+                "Content-Type": "application/json",
+            },
+        )
+        assert correct_response.status_code == 200
+        assert correct_response.json()["event"] == "ping"
+

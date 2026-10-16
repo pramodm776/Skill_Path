@@ -72,6 +72,7 @@ class Settings:
     telegram_pairing_ttl_seconds: int = 600
     telegram_timeout_seconds: int = 12
     sqlite_journal_mode: str = "WAL"
+    github_webhook_secret: str | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -136,4 +137,5 @@ class Settings:
                 os.getenv("TELEGRAM_TIMEOUT_SECONDS"), default=12, minimum=3
             ),
             sqlite_journal_mode=_sqlite_journal_mode(os.getenv("SQLITE_JOURNAL_MODE")),
+            github_webhook_secret=os.getenv("GITHUB_WEBHOOK_SECRET") or None,
         )
