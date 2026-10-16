@@ -14,6 +14,8 @@
     events: [],
     telegram: null,
     telegramPairing: null,
+    serverTelegram: null,
+    serverJobSearch: null,
     jobSearchResults: [],
     refreshTimer: null,
     refreshBusy: false,
@@ -369,12 +371,22 @@
       const item = make("article", "job-search-result");
       const copy = document.createElement("div");
       copy.append(make("h3", "", `${text(result.title, "Untitled role")} - ${text(result.company, "Unknown company")}`));
-      const details = [result.location, result.employment_type, result.posted_at].filter(Boolean).join(" | ");
-      copy.append(make("p", "", details || "Review the posting URL and description before saving."));
+      const tags = [
+        result.provider ? `Provider: ${result.provider}` : "",
+        result.source && result.source !== result.provider ? `Source: ${result.source}` : "",
+        result.location,
+        result.employment_type,
+        result.posted_at ? formatDate(result.posted_at) : "",
+      ].filter(Boolean).join(" • ");
+      copy.append(make("p", "", tags || "Real-time tech opportunity"));
+      if (result.description) {
+        const snippetText = result.description.length > 180 ? `${result.description.slice(0, 180)}...` : result.description;
+        copy.append(make("p", "job-snippet", snippetText));
+      }
       item.append(copy);
-      const use = make("button", "button button--quiet", result.posting_url ? "Use in job form" : "No public URL");
+      const use = make("button", "button button--quiet", "Use this posting");
       use.type = "button";
-      use.disabled = !result.posting_url;
+      use.disabled = false;
       use.dataset.jobSearchIndex = String(index);
       item.append(use);
       elements.jobSearchResults.append(item);
@@ -383,57 +395,63 @@
 
   function useJobSearchResult(index) {
     const result = state.jobSearchResults[index];
-    if (!result || !result.posting_url) return;
+    if (!result) return;
     elements.jobTitle.value = result.title || "";
-    elements.jobCompany.value = result.company || "";
-    elements.jobSourceUrl.value = result.posting_url;
+    elements.jobCompany.value = result.company === "Company not specified" ? "" : (result.company || "");
+    elements.jobSourceUrl.value = result.posting_url || "";
     elements.jobDescription.value = result.description || "";
     const descriptionNotice = result.description
-      ? "The selected result prefilled the form. Review the direct posting URL and text, then save it."
-      : "The selected result supplied a URL but no usable description. Fetch or paste the job text before saving.";
-    setFeedback(elements.jobFeedback, descriptionNotice, result.description ? "success" : "error");
-    elements.jobSourceUrl.focus();
+      ? "Selected posting loaded into the form. You can adjust details or save directly."
+      : "Selected role title and company loaded. Enter skill requirements before saving.";
+    setFeedback(elements.jobFeedback, descriptionNotice, "success");
+    elements.saveJobButton.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   function renderTelegram() {
     clear(elements.telegramPairing);
     elements.telegramPairing.hidden = true;
-    const telegram = state.telegram;
-    if (!state.repository) {
-      setTone(elements.telegramState, "", "Not connected");
-      elements.telegramDescription.textContent = "Connect a repository to see whether server-side Telegram alerts are available.";
-      elements.telegramPairButton.disabled = true;
-      return;
-    }
-    if (!telegram?.available) {
+    const telegram = state.telegram || state.serverTelegram;
+    const isAvailable = Boolean(state.serverTelegram?.available || telegram?.available);
+
+    if (!isAvailable) {
       setTone(elements.telegramState, "warning", "Unavailable");
-      elements.telegramDescription.textContent = telegram?.reason || "Telegram alerts are not configured on this server. The assessment flow remains available.";
+      elements.telegramDescription.textContent =
+        state.serverTelegram?.reason || "Telegram alerts are not configured on this server. The assessment flow remains fully functional.";
       elements.telegramPairButton.disabled = true;
       return;
     }
-    if (telegram.state === "paired") {
+
+    elements.telegramPairButton.disabled = false;
+
+    if (state.telegram?.state === "paired") {
       setTone(elements.telegramState, "ready", "Paired");
-      elements.telegramDescription.textContent = "A paired chat receives a concise alert only after a newly detected commit is automatically reassessed. Evidence excerpts and credentials are never sent.";
-      elements.telegramPairButton.disabled = false;
+      elements.telegramDescription.textContent =
+        "A paired chat receives a concise alert whenever a new commit is automatically reassessed. Evidence excerpts and credentials are never sent.";
       elements.telegramPairButton.querySelector(":scope > span:first-child")?.replaceChildren("Re-pair Telegram");
       return;
     }
-    if (telegram.state === "pairing_pending") {
+
+    if (state.telegram?.state === "pairing_pending") {
       setTone(elements.telegramState, "working", "Pairing pending");
-      elements.telegramDescription.textContent = `Pairing expires ${formatDate(telegram.pairing_expires_at)}. Complete /start in Telegram or create a fresh code.`;
+      elements.telegramDescription.textContent = `Pairing code active. Complete /start in Telegram or request a fresh code.`;
+    } else if (state.repository) {
+      setTone(elements.telegramState, "", "Ready to pair");
+      elements.telegramDescription.textContent = `Pair your Telegram chat to receive instant proof delta alerts when commits arrive on ${state.repository.owner}/${state.repository.name}.`;
     } else {
-      setTone(elements.telegramState, "", "Unpaired");
-      elements.telegramDescription.textContent = "Pair a Telegram chat if you want a post-commit reassessment alert for this repository.";
+      setTone(elements.telegramState, "", "Bot available");
+      const botName = state.serverTelegram?.bot_username ? `@${state.serverTelegram.bot_username}` : "SkillPath Bot";
+      elements.telegramDescription.textContent = `Telegram bot ${botName} is ready. Pair now to link your repository and receive commit push updates.`;
     }
-    elements.telegramPairButton.disabled = false;
+
     const label = elements.telegramPairButton.querySelector(":scope > span:first-child");
-    if (label) label.textContent = "Pair Telegram";
+    if (label) label.textContent = state.telegram?.state === "paired" ? "Re-pair Telegram" : "Pair Telegram";
+
     const pairing = state.telegramPairing;
     if (!pairing) return;
     elements.telegramPairing.hidden = false;
     elements.telegramPairing.append(make("span", "", "Open the bot or send this command:"));
     if (pairing.deep_link) elements.telegramPairing.append(externalLink("Open Telegram bot", pairing.deep_link, "context-link"));
-    elements.telegramPairing.append(make("code", "", pairing.start_command || ""));
+    if (pairing.start_command) elements.telegramPairing.append(make("code", "", pairing.start_command));
   }
 
   function renderHistory() {
@@ -652,9 +670,9 @@
       elements.jobSourceUrl.value = "";
       elements.jobDescription.value = "";
       elements.repositoryUrl.value = "";
-      elements.repositoryUrl.disabled = true;
-      elements.connectRepositoryButton.disabled = true;
-      elements.repositoryHelp.textContent = "Save or select job requirements before connecting a repository.";
+      elements.repositoryUrl.disabled = false;
+      elements.connectRepositoryButton.disabled = false;
+      elements.repositoryHelp.textContent = "Connect any public or authenticated GitHub repository for evidence assessment.";
       localStorage.removeItem(ACTIVE_REPOSITORY_KEY);
       renderAll();
       return;
@@ -712,9 +730,9 @@
       elements.jobSourceUrl.value = "";
       elements.jobDescription.value = "";
       elements.repositoryUrl.value = "";
-      elements.repositoryUrl.disabled = true;
-      elements.connectRepositoryButton.disabled = true;
-      elements.repositoryHelp.textContent = "Save or select job requirements before connecting a repository.";
+      elements.repositoryUrl.disabled = false;
+      elements.connectRepositoryButton.disabled = false;
+      elements.repositoryHelp.textContent = "Connect any public or authenticated GitHub repository for evidence assessment.";
       await loadSavedJobs();
       renderAll();
     } catch (err) {
@@ -758,42 +776,40 @@
     const company = elements.jobCompany.value.trim() || "Company not specified";
     const sourceUrl = elements.jobSourceUrl.value.trim();
     let description = elements.jobDescription.value.trim();
-    if (!title || !sourceUrl) {
-      setFeedback(elements.jobFeedback, "Enter a role title and source posting URL.", "error");
+    if (!title) {
+      setFeedback(elements.jobFeedback, "Enter a role title.", "error");
+      return;
+    }
+    if (!description && !sourceUrl) {
+      setFeedback(elements.jobFeedback, "Enter job-description requirements or a posting URL to fetch.", "error");
       return;
     }
     setButtonLoading(elements.saveJobButton, true, description ? "Saving job" : "Fetching page");
     try {
-      if (!description) {
+      if (!description && sourceUrl) {
         const fetched = await api("/api/jobs/fetch", { method: "POST", body: { source_url: sourceUrl } });
         elements.jobDescription.value = fetched.description || "";
         setFeedback(elements.jobFeedback, "Description fetched into the form. Review it, then select Save job requirements again.", "success");
         toast("Job text fetched. Review it before saving.", "success");
         return;
       }
+      const body = { title, company, description };
+      if (sourceUrl) body.source_url = sourceUrl;
       const payload = await api("/api/jobs", {
         method: "POST",
-        body: { title, company, source_url: sourceUrl, description },
+        body,
       });
       state.job = payload.job;
-      state.repository = null;
-      state.snapshot = null;
-      state.history = [];
-      state.monitor = null;
-      state.events = [];
-      state.telegram = null;
-      state.telegramPairing = null;
-      localStorage.removeItem(ACTIVE_REPOSITORY_KEY);
       elements.repositoryUrl.disabled = false;
       elements.connectRepositoryButton.disabled = false;
-      elements.repositoryHelp.textContent = payload.warning || "Job saved. Connect a GitHub repository to inspect it.";
+      elements.repositoryHelp.textContent = payload.warning || "Job saved. Connect or assess your GitHub repository.";
       setFeedback(elements.jobFeedback, payload.warning || `${payload.job.skills?.length || 0} supported requirement${payload.job.skills?.length === 1 ? "" : "s"} extracted from the supplied text.`, payload.warning ? "error" : "success");
       await loadSavedJobs();
       if (elements.savedJobsSelect) {
         elements.savedJobsSelect.value = String(state.job.id);
       }
       renderAll();
-      toast(payload.warning || "Job source and requirements saved.", payload.warning ? "warning" : "success");
+      toast(payload.warning || "Job requirements saved.", payload.warning ? "warning" : "success");
     } catch (error) {
       setFeedback(elements.jobFeedback, error.message, "error");
       toast(error.message, "error");
@@ -806,27 +822,31 @@
     event.preventDefault();
     setFeedback(elements.repositoryFeedback, "");
     const repositoryUrl = elements.repositoryUrl.value.trim();
-    if (!state.job?.id) {
-      setFeedback(elements.repositoryFeedback, "Save job requirements before connecting a repository.", "error");
-      return;
-    }
     if (!repositoryUrl) {
       setFeedback(elements.repositoryFeedback, "Enter a GitHub repository URL.", "error");
       return;
     }
+    let jobId = state.job?.id;
+    if (!jobId && state.savedJobs && state.savedJobs.length > 0) {
+      jobId = state.savedJobs[0].id;
+      state.job = state.savedJobs[0];
+      if (elements.savedJobsSelect) elements.savedJobsSelect.value = String(jobId);
+    }
     setButtonLoading(elements.connectRepositoryButton, true, "Inspecting code");
     setConnection("working", "Inspecting repository evidence without executing code");
     try {
+      const body = { repository_url: repositoryUrl };
+      if (jobId) body.job_id = jobId;
       const payload = await api("/api/repositories", {
         method: "POST",
-        body: { job_id: state.job.id, repository_url: repositoryUrl },
+        body,
       });
       state.repository = payload.repository;
       state.snapshot = payload.snapshot;
       state.events = [];
       await loadOverview(state.repository.id);
       await loadSavedJobs();
-      setFeedback(elements.repositoryFeedback, payload.message || "Repository connected.", "success");
+      setFeedback(elements.repositoryFeedback, payload.message || "Repository connected and assessed.", "success");
       toast(payload.message || "Repository connected and assessed.", "success");
     } catch (error) {
       setFeedback(elements.repositoryFeedback, error.message, "error");
@@ -897,9 +917,28 @@
   }
 
   async function pairTelegram() {
-    if (!state.repository?.id) return;
-    setButtonLoading(elements.telegramPairButton, true, "Creating code");
+    setButtonLoading(elements.telegramPairButton, true, "Preparing");
     try {
+      if (!state.repository?.id) {
+        const repoPayload = await api("/api/repositories");
+        const repos = Array.isArray(repoPayload.repositories) ? repoPayload.repositories : [];
+        if (repos.length > 0) {
+          await loadOverview(repos[0].id);
+        } else {
+          if (state.serverTelegram?.bot_username) {
+            state.telegramPairing = {
+              deep_link: `https://t.me/${state.serverTelegram.bot_username}`,
+              start_command: `/start`,
+            };
+            renderTelegram();
+            toast(`Bot ready: @${state.serverTelegram.bot_username}. Connect your GitHub repository above for live commit alerts!`, "info");
+            return;
+          }
+          toast("Please enter your GitHub repository above so the bot knows which repository to link.", "warning");
+          elements.repositoryUrl.focus();
+          return;
+        }
+      }
       const payload = await api(`/api/repositories/${state.repository.id}/telegram/pair`, { method: "POST" });
       state.telegramPairing = payload.pairing || null;
       state.telegram = { ...(state.telegram || {}), available: true, state: "pairing_pending", pairing_expires_at: payload.pairing?.expires_at };
@@ -967,15 +1006,18 @@
       const health = await api("/api/health");
       if (health.status !== "ok") throw new Error("The local backend did not report a healthy state.");
       if (elements.backendOfflineBanner) elements.backendOfflineBanner.hidden = true;
+      state.serverTelegram = health.telegram || null;
+      state.serverJobSearch = health.job_search || null;
       await loadSavedJobs();
       const savedId = localStorage.getItem(ACTIVE_REPOSITORY_KEY);
       if (savedId && /^\d+$/.test(savedId)) {
         await loadOverview(savedId);
-        elements.repositoryUrl.disabled = false;
-        elements.connectRepositoryButton.disabled = false;
       } else {
-        setConnection("idle", "Waiting for a job and repository");
+        setConnection("idle", "Ready to connect a repository or select a job");
       }
+      elements.repositoryUrl.disabled = false;
+      elements.connectRepositoryButton.disabled = false;
+      renderAll();
     } catch (error) {
       if (elements.backendOfflineBanner) elements.backendOfflineBanner.hidden = false;
       setConnection("error", error.message || "The local backend is unavailable.");

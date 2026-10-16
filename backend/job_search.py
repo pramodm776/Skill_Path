@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import html
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -9,7 +12,7 @@ from .config import Settings
 from .errors import AppError
 
 
-MAX_RESULTS = 12
+MAX_RESULTS = 16
 
 
 def _safe_public_url(value: object) -> str | None:
@@ -22,8 +25,14 @@ def _safe_public_url(value: object) -> str | None:
     return candidate
 
 
+def _clean_snippet(text: str) -> str:
+    cleaned = re.sub(r"<[^>]+>", " ", text)
+    cleaned = html.unescape(cleaned)
+    return " ".join(cleaned.split())
+
+
 class JSearchClient:
-    """Small server-side client for optional job discovery.
+    """Server-side client for real-time job discovery via Jooble and JSearch.
 
     Results are only suggestions. A user must still review a result before the
     normal job-ingestion endpoint persists its returned source URL and text.
@@ -34,28 +43,95 @@ class JSearchClient:
         self.transport = transport
 
     def status(self) -> dict[str, Any]:
-        if not self.settings.jsearch_api_key:
+        providers: list[str] = []
+        if self.settings.jooble_api_key:
+            providers.append("Jooble")
+        if self.settings.jsearch_api_key:
+            providers.append("JSearch")
+        if not providers:
             return {
                 "available": False,
-                "provider": "JSearch",
-                "reason": "JSEARCH_API_KEY is not configured; paste a real job posting URL and description instead.",
+                "provider": "Job Search",
+                "reason": "Neither JOOBLE_API_KEY nor JSEARCH_API_KEY is configured; paste job requirements manually.",
             }
-        return {"available": True, "provider": "JSearch", "max_results": MAX_RESULTS}
+        return {
+            "available": True,
+            "provider": " & ".join(providers),
+            "providers": providers,
+            "max_results": MAX_RESULTS,
+        }
 
-    async def search(
+    async def _search_jooble(self, *, query: str, location: str | None = None) -> list[dict[str, Any]]:
+        if not self.settings.jooble_api_key:
+            return []
+        base_url = self.settings.jooble_api_url.rstrip("/")
+        api_url = f"{base_url}/{self.settings.jooble_api_key}"
+        payload: dict[str, str] = {"keywords": query.strip()}
+        if location and location.strip():
+            payload["location"] = location.strip()
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(self.settings.jooble_timeout_seconds),
+                follow_redirects=True,
+                transport=self.transport,
+            ) as client:
+                response = await client.post(api_url, json=payload, headers=headers)
+        except httpx.HTTPError as error:
+            raise AppError("job_search_unavailable", "Jooble job discovery could not be reached.", 502) from error
+
+        if response.status_code in {401, 403}:
+            raise AppError("job_search_authentication_failed", "Jooble rejected the configured API key.", 502)
+        if response.status_code == 429:
+            raise AppError("job_search_rate_limited", "Jooble job discovery is rate-limited.", 429)
+        if response.is_error:
+            raise AppError("job_search_failed", f"Jooble returned error code {response.status_code}.", 502)
+
+        try:
+            data = response.json()
+        except ValueError as error:
+            raise AppError("job_search_invalid_response", "Jooble returned an unreadable response.", 502) from error
+
+        raw_items = data.get("jobs", []) if isinstance(data, dict) else []
+        if not isinstance(raw_items, list):
+            raw_items = []
+
+        results: list[dict[str, Any]] = []
+        for item in raw_items[:MAX_RESULTS]:
+            if not isinstance(item, dict):
+                continue
+            title = item.get("title")
+            company = item.get("company")
+            snippet = item.get("snippet") or ""
+            posting_url = _safe_public_url(item.get("link"))
+            if not isinstance(title, str) or not title.strip() or not isinstance(company, str) or not company.strip():
+                continue
+            clean_desc = _clean_snippet(str(snippet))
+            results.append(
+                {
+                    "title": title.strip()[:240],
+                    "company": company.strip()[:240],
+                    "posting_url": posting_url,
+                    "description": clean_desc[:50_000] if clean_desc else "",
+                    "location": item.get("location") or "",
+                    "posted_at": item.get("updated") or "",
+                    "employment_type": item.get("type") or "",
+                    "source": item.get("source") or "Jooble",
+                    "provider": "Jooble",
+                }
+            )
+        return results
+
+    async def _search_jsearch(
         self,
         *,
         query: str,
         country: str,
         location: str | None = None,
         date_posted: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> list[dict[str, Any]]:
         if not self.settings.jsearch_api_key:
-            raise AppError(
-                "job_search_unavailable",
-                "Job discovery is not configured. Paste a real public job-posting URL and description instead.",
-                503,
-            )
+            return []
         base_url = self.settings.jsearch_api_url.rstrip("/")
         host = urlparse(base_url).netloc
         if not host:
@@ -158,12 +234,79 @@ class JSearchClient:
                     "location": item.get("job_city") or item.get("job_country") or item.get("location") or "",
                     "posted_at": item.get("job_posted_at_datetime_utc") or item.get("posted_at") or "",
                     "employment_type": item.get("job_employment_type") or item.get("employment_type") or "",
+                    "source": "RapidAPI",
+                    "provider": "JSearch",
                 }
             )
+        return results
+
+    async def search(
+        self,
+        *,
+        query: str,
+        country: str,
+        location: str | None = None,
+        date_posted: str | None = None,
+    ) -> dict[str, Any]:
+        has_jooble = bool(self.settings.jooble_api_key)
+        has_jsearch = bool(self.settings.jsearch_api_key)
+
+        if not has_jooble and not has_jsearch:
+            raise AppError(
+                "job_search_unavailable",
+                "Job discovery is not configured. Paste a real public job-posting URL and description instead.",
+                503,
+            )
+
+        results: list[dict[str, Any]] = []
+        active_providers: list[str] = []
+
+        if has_jooble and has_jsearch:
+            jooble_task = self._search_jooble(query=query, location=location)
+            jsearch_task = self._search_jsearch(
+                query=query, country=country, location=location, date_posted=date_posted
+            )
+            outcomes = await asyncio.gather(jooble_task, jsearch_task, return_exceptions=True)
+            jooble_res, jsearch_res = outcomes[0], outcomes[1]
+
+            seen_keys: set[tuple[str, str]] = set()
+            if isinstance(jooble_res, list) and jooble_res:
+                active_providers.append("Jooble")
+                for item in jooble_res:
+                    key = (item["title"].strip().lower(), item["company"].strip().lower())
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        results.append(item)
+            if isinstance(jsearch_res, list) and jsearch_res:
+                active_providers.append("JSearch")
+                for item in jsearch_res:
+                    key = (item["title"].strip().lower(), item["company"].strip().lower())
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        results.append(item)
+
+            if not results:
+                if isinstance(jooble_res, Exception) and isinstance(jsearch_res, Exception):
+                    if isinstance(jooble_res, AppError):
+                        raise jooble_res
+                    if isinstance(jsearch_res, AppError):
+                        raise jsearch_res
+                    raise AppError("job_search_unavailable", "Job discovery failed across configured providers.", 502)
+
+        elif has_jooble:
+            active_providers.append("Jooble")
+            results = await self._search_jooble(query=query, location=location)
+        else:
+            active_providers.append("JSearch")
+            results = await self._search_jsearch(
+                query=query, country=country, location=location, date_posted=date_posted
+            )
+
+        provider_label = " & ".join(active_providers) if active_providers else "Job Search"
         return {
-            "provider": "JSearch",
+            "provider": provider_label,
             "query": query.strip(),
             "country": country.strip().lower(),
-            "results": results,
+            "results": results[:MAX_RESULTS],
             "notice": "Review the returned text and source URL before saving. A search result is not persisted or assessed until you save it as a job.",
         }

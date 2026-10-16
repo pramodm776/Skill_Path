@@ -140,7 +140,8 @@ def test_job_allows_an_unknown_company_but_requires_a_traceable_source_url(tmp_p
                 "description": "Required qualifications include Python and FastAPI for backend services.",
             },
         )
-        assert missing_source.status_code == 422
+        assert missing_source.status_code == 201
+        assert "skillpath.local" in missing_source.json()["job"]["source_url"]
 
 
 def test_optional_integration_routes_are_server_side_and_webhook_authenticated(tmp_path) -> None:

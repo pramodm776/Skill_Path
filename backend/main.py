@@ -8,6 +8,7 @@ import re
 from contextlib import asynccontextmanager
 from html.parser import HTMLParser
 from pathlib import Path
+import time
 from typing import Any, Optional
 from urllib.parse import urlparse
 
@@ -37,7 +38,7 @@ MAX_FETCHED_PAGE_BYTES = 750_000
 class JobCreateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=240)
     company: Optional[str] = Field(default=None, max_length=240)
-    source_url: str = Field(min_length=8, max_length=2_048)
+    source_url: Optional[str] = Field(default=None, max_length=2_048)
     description: str = Field(min_length=1, max_length=MAX_JOB_DESCRIPTION_CHARS)
 
 
@@ -53,7 +54,7 @@ class JobSearchRequest(BaseModel):
 
 
 class RepositoryCreateRequest(BaseModel):
-    job_id: int = Field(gt=0)
+    job_id: Optional[int] = Field(default=None, gt=0)
     repository_url: str = Field(min_length=12, max_length=2_048)
 
 
@@ -64,7 +65,7 @@ class MonitorUpdateRequest(BaseModel):
 class JobUpdateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=240)
     company: Optional[str] = Field(default=None, max_length=240)
-    source_url: str = Field(min_length=8, max_length=2_048)
+    source_url: Optional[str] = Field(default=None, max_length=2_048)
     description: str = Field(min_length=1, max_length=MAX_JOB_DESCRIPTION_CHARS)
 
 
@@ -284,7 +285,11 @@ def create_app(
 
     @app.post("/api/jobs", status_code=201)
     async def create_job(payload: JobCreateRequest) -> dict[str, Any]:
-        source_url = validate_public_http_url(payload.source_url, label="Job posting URL")
+        raw_source = payload.source_url.strip() if isinstance(payload.source_url, str) else ""
+        if raw_source:
+            source_url = validate_public_http_url(raw_source, label="Job posting URL")
+        else:
+            source_url = f"https://skillpath.local/jobs/role-{int(time.time() * 1000)}"
         description = payload.description.strip()
         company = payload.company.strip() if isinstance(payload.company, str) else ""
         if len(description) < 30:
@@ -339,7 +344,11 @@ def create_app(
         existing = store.get_job(job_id)
         if not existing:
             raise AppError("job_not_found", "Job was not found.", 404)
-        source_url = validate_public_http_url(payload.source_url, label="Job posting URL")
+        raw_source = payload.source_url.strip() if isinstance(payload.source_url, str) else ""
+        if raw_source:
+            source_url = validate_public_http_url(raw_source, label="Job posting URL")
+        else:
+            source_url = existing.get("source_url") or f"https://skillpath.local/jobs/role-{int(time.time() * 1000)}"
         description = payload.description.strip()
         company = payload.company.strip() if isinstance(payload.company, str) else ""
         if len(description) < 30:
@@ -393,7 +402,24 @@ def create_app(
 
     @app.post("/api/repositories", status_code=201)
     async def connect_repository(payload: RepositoryCreateRequest) -> dict[str, Any]:
-        job = store.get_job(payload.job_id)
+        job_id = payload.job_id
+        if job_id is None:
+            saved_jobs = store.list_jobs()
+            if saved_jobs:
+                job_id = int(saved_jobs[0]["id"])
+            else:
+                benchmark_skills = extract_job_skills(
+                    "Full-Stack Python Engineer: Python, FastAPI, SQLite, Git, Pytest, REST APIs, HTML, CSS, JavaScript."
+                )
+                benchmark_job = store.create_job(
+                    title="Software Engineer (Benchmark Role)",
+                    company="SkillPath Benchmark",
+                    source_url="https://skillpath.local/jobs/benchmark",
+                    description="Full-Stack Python Engineer: Python, FastAPI, SQLite, Git, Pytest, REST APIs, HTML, CSS, JavaScript.",
+                    skills=benchmark_skills,
+                )
+                job_id = int(benchmark_job["id"])
+        job = store.get_job(job_id)
         if not job:
             raise AppError("job_not_found", "Create or select a job before connecting a repository.", 404)
         if not job.get("skills"):
@@ -409,11 +435,11 @@ def create_app(
         default_branch = inspection.get("default_branch")
         if not all(isinstance(value, str) and value for value in (repository_url, owner, name, default_branch)):
             raise AppError("github_invalid_response", "GitHub inspection did not include repository metadata.", 502)
-        repository = store.find_repository(payload.job_id, repository_url)
+        repository = store.find_repository(job_id, repository_url)
         created_repository = repository is None
         if repository is None:
             repository = store.create_repository(
-                job_id=payload.job_id,
+                job_id=job_id,
                 repository_url=repository_url,
                 owner=owner,
                 name=name,

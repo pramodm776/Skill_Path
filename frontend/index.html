@@ -81,8 +81,8 @@
             </div>
 
             <details class="job-discovery" id="job-discovery">
-              <summary>Find a live posting with JSearch <span class="optional">optional, India-ready</span></summary>
-              <p>Choosing a result fills the role, company when available, source URL, and description. Review them, then save the selected posting yourself.</p>
+              <summary>Find live postings with Jooble & JSearch <span class="optional">live India & global tech jobs</span></summary>
+              <p>Discover live developer and engineering openings. Selecting a result pre-fills the role, company, source link, and description for instant assessment.</p>
               <form id="job-search-form" class="job-search-form" novalidate>
                 <label>
                   <span>Search terms</span>
@@ -111,12 +111,12 @@
                 <label>
                   <span>Company <span class="optional">optional</span></span>
                   <input id="job-company" name="company" type="text" autocomplete="organization" placeholder="e.g. Acme Labs" />
-                  <small>Used only to label the assessment. JSearch fills it when available.</small>
+                  <small>Used only to label the assessment. Search pre-fills it when available.</small>
                 </label>
                 <label class="form-span-full">
-                  <span>Source posting URL <em aria-hidden="true">*</em></span>
-                  <input id="job-source-url" name="source_url" type="url" inputmode="url" autocomplete="url" placeholder="https://company.example/careers/role" required />
-                  <small>Required for traceability. JSearch fills it after you choose a result; paste it only for manual entry.</small>
+                  <span>Source posting URL <span class="optional">optional for manual entry / real-time jobs</span></span>
+                  <input id="job-source-url" name="source_url" type="url" inputmode="url" autocomplete="url" placeholder="https://company.example/careers/role (optional)" />
+                  <small>Optional for real-time jobs or manual skill benchmark entry. Provide a link if you have a specific posting URL.</small>
                 </label>
                 <label class="form-span-full">
                   <span>Job-description text <span class="optional">optional when the server can fetch the page</span></span>
@@ -147,11 +147,11 @@
             <form id="repository-form" novalidate>
               <label>
                 <span>GitHub repository URL <em aria-hidden="true">*</em></span>
-                <input id="repository-url" name="repository_url" type="url" inputmode="url" placeholder="https://github.com/owner/repository" required disabled />
-                <small id="repository-help">Save job requirements before connecting a repository.</small>
+                <input id="repository-url" name="repository_url" type="url" inputmode="url" placeholder="https://github.com/owner/repository" required />
+                <small id="repository-help">Connect any public or token-authenticated GitHub repository for evidence assessment.</small>
               </label>
               <div class="form-actions">
-                <button class="button button--secondary" type="submit" id="connect-repository-button" disabled>
+                <button class="button button--secondary" type="submit" id="connect-repository-button">
                   <span>Connect and assess</span>
                   <span class="button-arrow" aria-hidden="true">→</span>
                 </button>
@@ -260,7 +260,7 @@
             </div>
             <div class="telegram-actions">
               <span class="data-state" id="telegram-state">Not connected</span>
-              <button class="button button--quiet" type="button" id="telegram-pair-button" disabled>Pair Telegram</button>
+              <button class="button button--quiet" type="button" id="telegram-pair-button">Pair Telegram</button>
             </div>
           </section>
 
