@@ -25,7 +25,7 @@ from .github_client import GitHubClient
 from .job_search import JSearchClient
 from .llm import LLMInterpreter
 from .monitor import MonitorService
-from .skills import compare_assessments, extract_job_skills
+from .skills import compare_assessments, extract_job_skills, is_truncated_snippet
 from .storage import SQLiteStore
 from .telegram import TelegramService
 
@@ -219,13 +219,14 @@ def generate_benchmark_job_description(title: str, company: str = "", city: str 
             "Automated testing with pytest test suites and robust assertions",
             "Version control and Git collaboration best practices",
         ])
-    if any(k in lower for k in ["rag", "ai", "machine learning", "ml", "llm", "data science"]):
+    if any(k in lower for k in ["rag", "ai", "machine learning", "ml", "llm", "data science", "nlp", "deep learning"]):
         skills_to_include.extend([
             "Python engineering and data processing pipelines",
-            "Retrieval-augmented generation (RAG) and vector similarity search",
-            "Machine learning evaluation, model inference, and reproducible results",
-            "Backend API development and service endpoints",
-            "Automated testing and dataset validation",
+            "Machine learning and deep learning model inference and evaluation",
+            "Natural language processing (NLP), text chunking, and lexical/semantic retrieval",
+            "Retrieval-augmented generation (RAG) and vector search with embeddings (Chroma or FAISS)",
+            "LLM integration using OpenAI API or modern generative AI SDKs",
+            "Automated testing and version control with Git and GitHub",
         ])
     if any(k in lower for k in ["frontend", "react", "ui", "web design"]):
         skills_to_include.extend([
@@ -364,7 +365,22 @@ def create_app(
                 city=city,
             )
 
-        skills = extract_job_skills(description)
+        skills = extract_job_skills(description, title=payload.title.strip())
+        if len(skills) < 2 and is_truncated_snippet(description):
+            supp_desc = generate_benchmark_job_description(
+                title=payload.title.strip(),
+                company=display_company,
+                city=city,
+            )
+            supp_skills = extract_job_skills(supp_desc, title=payload.title.strip())
+            existing_keys = {s["key"] for s in skills}
+            for item in supp_skills:
+                if item["key"] not in existing_keys:
+                    item["source_excerpt"] = f"[Role benchmark for truncated snippet] {item['source_excerpt']}"
+                    skills.append(item)
+                    existing_keys.add(item["key"])
+            description = f"{description}\n\n[Note: External job snippet was truncated; role-standard requirements supplemented for {payload.title.strip()}]\n{supp_desc}"
+
         job = store.create_job(
             title=payload.title.strip(),
             company=display_company,
@@ -434,7 +450,21 @@ def create_app(
                 city=city,
             )
 
-        skills = extract_job_skills(description)
+        skills = extract_job_skills(description, title=payload.title.strip())
+        if len(skills) < 2 and is_truncated_snippet(description):
+            supp_desc = generate_benchmark_job_description(
+                title=payload.title.strip(),
+                company=display_company,
+                city=city,
+            )
+            supp_skills = extract_job_skills(supp_desc, title=payload.title.strip())
+            existing_keys = {s["key"] for s in skills}
+            for item in supp_skills:
+                if item["key"] not in existing_keys:
+                    item["source_excerpt"] = f"[Role benchmark for truncated snippet] {item['source_excerpt']}"
+                    skills.append(item)
+                    existing_keys.add(item["key"])
+
         job = store.update_job(
             job_id,
             title=payload.title.strip(),
@@ -476,6 +506,40 @@ def create_app(
         repos = await github_client.list_user_repositories(username)
         return {"username": username.strip().lstrip("@"), "repositories": repos}
 
+    @app.get("/api/github/validate")
+    async def validate_github_repository(repository_url: str) -> dict[str, Any]:
+        raw_url = repository_url.strip()
+        if raw_url.startswith("@"):
+            raw_url = f"https://github.com/{raw_url.lstrip('@')}"
+        parsed_url = urlparse(raw_url)
+        path_parts = [unquote(p) for p in parsed_url.path.strip("/").split("/") if p]
+        if parsed_url.hostname in {"github.com", "www.github.com"} and len(path_parts) == 1:
+            username = path_parts[0]
+            user_repos = await github_client.list_user_repositories(username)
+            if not user_repos:
+                raise AppError("no_public_repositories", f"No public repositories found for GitHub user '{username}'.", 404)
+            chosen = next((r for r in user_repos if not r.get("fork")), user_repos[0])
+            raw_url = chosen["html_url"]
+        if hasattr(github_client, "validate_repository_metadata"):
+            metadata = await github_client.validate_repository_metadata(raw_url)
+        else:
+            inspection = await github_client.inspect_repository(raw_url)
+            metadata = {
+                "owner": inspection.get("owner"),
+                "name": inspection.get("name"),
+                "full_name": f"{inspection.get('owner')}/{inspection.get('name')}",
+                "repository_url": inspection.get("repository_url"),
+                "default_branch": inspection.get("default_branch", "main"),
+                "description": inspection.get("description", ""),
+                "language": inspection.get("language", ""),
+                "stars": inspection.get("stars", 0),
+                "visibility": inspection.get("visibility", "public"),
+                "commit_sha": inspection.get("commit_sha"),
+                "commit_url": inspection.get("commit_url"),
+                "commit_date": inspection.get("commit_date"),
+            }
+        return {"valid": True, "repository": metadata}
+
     @app.delete("/api/repositories/{repository_id}")
     async def delete_repository(repository_id: int) -> dict[str, Any]:
         if not store.get_repository(repository_id):
@@ -513,12 +577,14 @@ def create_app(
             )
 
         raw_url = payload.repository_url.strip()
+        if raw_url.startswith("@"):
+            raw_url = f"https://github.com/{raw_url.lstrip('@')}"
         parsed_url = urlparse(raw_url)
         path_parts = [unquote(p) for p in parsed_url.path.strip("/").split("/") if p]
         target_repo_url = raw_url
         auto_selected_name: str | None = None
 
-        if parsed_url.hostname == "github.com" and len(path_parts) == 1:
+        if parsed_url.hostname in {"github.com", "www.github.com"} and len(path_parts) == 1:
             username = path_parts[0]
             user_repos = await github_client.list_user_repositories(username)
             if not user_repos:
@@ -571,6 +637,7 @@ def create_app(
                 trigger="manual_scan",
                 changed_files=changed_files,
                 previous_sha=known_sha if isinstance(known_sha, str) else None,
+                refresh_existing=True,
             )
             repository = store.get_repository(int(repository["id"])) or repository
         return {
@@ -625,11 +692,12 @@ def create_app(
             trigger="manual_scan",
             changed_files=changed_files,
             previous_sha=known_sha if isinstance(known_sha, str) else None,
+            refresh_existing=True,
         )
         return {
             "snapshot": snapshot,
             "created_snapshot": created,
-            "message": "Manual scan completed." if created else "This commit already has an assessment; no duplicate was created.",
+            "message": "Manual scan completed." if created else "Reanalyzed current commit and refreshed evidence.",
         }
 
     @app.get("/api/repositories/{repository_id}/history")

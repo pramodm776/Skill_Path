@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Evidence-backed career assessment from a real job posting and GitHub repository."
+      content="SkillPath AI — Evidence-backed AI Career Coach from a real job posting and GitHub repository."
     />
-    <title>SkillPath AI | Evidence-led skill assessment</title>
+    <title>SkillPath AI | AI Career Coach & Evidence Ledger</title>
     <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
@@ -15,7 +15,7 @@
 
     <div class="app-shell">
       <header class="topbar">
-        <a class="brand" href="#" aria-label="SkillPath AI home">
+        <a class="brand" href="#setup" id="brand-home-link" aria-label="SkillPath AI home">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 48 48" fill="none">
               <path d="M9 12.5 24 5l15 7.5v12.7c0 8.6-6.4 14.4-15 17.8C15.4 39.6 9 33.8 9 25.2V12.5Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
@@ -24,12 +24,32 @@
           </span>
           <span>
             <strong>SkillPath AI</strong>
-            <small>Evidence, not assumptions</small>
+            <small>AI Career Coach · Evidence Ledger</small>
           </span>
         </a>
-        <div class="topbar-status" id="connection-status" role="status" aria-live="polite">
-          <span class="status-dot status-dot--idle" aria-hidden="true"></span>
-          <span>Waiting for a job and repository</span>
+
+        <nav class="top-nav" aria-label="Primary views">
+          <button class="top-nav__tab is-active" type="button" data-nav-view="setup" id="nav-tab-setup">
+            <span class="top-nav__step">01</span>
+            <span>Setup</span>
+          </button>
+          <button class="top-nav__tab" type="button" data-nav-view="result" id="nav-tab-result">
+            <span class="top-nav__step">02</span>
+            <span>Result</span>
+            <span class="top-nav__badge" id="nav-result-badge" hidden>—</span>
+          </button>
+          <button class="top-nav__tab" type="button" data-nav-view="compare" id="nav-tab-compare">
+            <span class="top-nav__step">03</span>
+            <span>Compare</span>
+            <span class="top-nav__badge top-nav__badge--delta" id="nav-compare-badge" hidden>Δ</span>
+          </button>
+        </nav>
+
+        <div class="topbar-right">
+          <div class="topbar-status" id="connection-status" role="status" aria-live="polite">
+            <span class="status-dot status-dot--idle" aria-hidden="true"></span>
+            <span>Waiting for a job and repository</span>
+          </div>
         </div>
       </header>
 
@@ -42,222 +62,509 @@
       </aside>
 
       <main id="main-content" class="main-content">
-        <section class="hero" aria-labelledby="page-title">
-          <div class="hero-copy">
-            <p class="eyebrow">Portfolio evidence, kept current</p>
-            <h1 id="page-title">Match what your code proves to the role you want.</h1>
-            <p class="hero-lede">
-              Connect a real job posting and GitHub repository. The assessment only reports evidence returned by the repository scan; it never turns a missing signal into a claim about you.
-            </p>
-          </div>
-          <aside class="hero-rule" aria-label="Assessment rule">
-            <span class="hero-rule__icon" aria-hidden="true">↗</span>
-            <div>
-              <strong>One live loop</strong>
-              <p>Job requirements → repository evidence → gaps → new commit → updated assessment.</p>
-            </div>
-          </aside>
-        </section>
-
-        <section class="onboarding" aria-label="Connect a job and repository">
-          <article class="panel intake-panel">
-            <div class="panel-heading">
-              <span class="step-number" aria-hidden="true">01</span>
-              <div>
-                <p class="section-kicker">Job requirements</p>
-                <h2>Start with the source</h2>
+        <!-- =====================================================================
+             VIEW 1: SETUP DASHBOARD (Reference Image 1)
+             ===================================================================== -->
+        <section class="view-section is-active" id="view-setup" aria-labelledby="setup-page-title">
+          <div class="setup-workspace">
+            <!-- Left Vertical Stepper Sidebar -->
+            <aside class="setup-stepper" aria-label="Setup workflow steps">
+              <div class="stepper-list">
+                <div class="stepper-item is-active" id="stepper-step-1">
+                  <span class="stepper-circle">1</span>
+                  <div class="stepper-copy">
+                    <strong>Select Job / Internship</strong>
+                    <span>Choose a role opportunity</span>
+                  </div>
+                </div>
+                <div class="stepper-connector" aria-hidden="true"></div>
+                <div class="stepper-item" id="stepper-step-2">
+                  <span class="stepper-circle">2</span>
+                  <div class="stepper-copy">
+                    <strong>Connect GitHub Repository</strong>
+                    <span>Link your actual code</span>
+                  </div>
+                </div>
+                <div class="stepper-connector" aria-hidden="true"></div>
+                <div class="stepper-item" id="stepper-step-3">
+                  <span class="stepper-circle">3</span>
+                  <div class="stepper-copy">
+                    <strong>Review &amp; Start Analysis</strong>
+                    <span>Confirm and analyze</span>
+                  </div>
+                </div>
               </div>
-            </div>
-            <p class="panel-intro">Use a real, publicly available job or internship posting. Its source link stays attached to every assessment; company is optional context.</p>
 
-            <div class="saved-jobs-bar" id="saved-jobs-bar">
-              <label for="saved-jobs-select"><span>Saved job postings</span></label>
-              <div class="saved-jobs-controls">
-                <select id="saved-jobs-select" aria-label="Select a previously saved job">
-                  <option value="">-- Or select a saved job --</option>
-                </select>
-                <button class="button button--danger-quiet" type="button" id="delete-job-button" title="Delete selected job" disabled>Delete</button>
+              <div class="stepper-promo">
+                <div class="stepper-promo__glow" aria-hidden="true"></div>
+                <p class="eyebrow">W-PS-2 · AI Career Coach</p>
+                <h3>Turn Your Code into Opportunities</h3>
+                <p>Get personalized, deterministic skill analysis and career guidance based on real job &amp; internship requirements.</p>
+                <div class="stepper-rules">
+                  <span>✓ Read-only bounded GitHub scan</span>
+                  <span>✓ Exact file &amp; line citations</span>
+                  <span>✓ Live commit Proof Deltas</span>
+                </div>
               </div>
-            </div>
+            </aside>
 
-            <details class="job-discovery" id="job-discovery">
-              <summary>Find live postings with Jooble & JSearch <span class="optional">live India & global tech jobs</span></summary>
-              <p>Discover live developer and engineering openings. Selecting a result pre-fills the role, company, source link, and description for instant assessment.</p>
-              <form id="job-search-form" class="job-search-form" novalidate>
-                <label>
-                  <span>Search terms</span>
-                  <input id="job-search-query" type="search" maxlength="160" placeholder="e.g. Python backend intern" />
-                </label>
-                <label>
-                  <span>Location <span class="optional">optional</span></span>
-                  <input id="job-search-location" type="text" maxlength="160" placeholder="e.g. Pune" />
-                </label>
-                <label>
-                  <span>Country</span>
-                  <input id="job-search-country" type="text" value="in" minlength="2" maxlength="2" aria-label="Two-letter country code" />
-                </label>
-                <button class="button button--quiet" type="submit" id="search-jobs-button"><span>Search postings</span></button>
-              </form>
-              <p class="form-feedback" id="job-search-feedback" role="status" aria-live="polite"></p>
-              <div class="job-search-results" id="job-search-results" aria-live="polite"></div>
-            </details>
+            <!-- Center Main Column -->
+            <div class="setup-main">
+              <!-- 1. Select a Job or Internship -->
+              <article class="panel neon-panel intake-panel">
+                <div class="panel-heading-bar">
+                  <div class="panel-heading">
+                    <span class="step-number" aria-hidden="true">1</span>
+                    <div>
+                      <h2 id="setup-page-title">1. Select a Job or Internship</h2>
+                      <p class="panel-sub">Choose a real opportunity or live posting to compare with your GitHub code</p>
+                    </div>
+                  </div>
+                  <div class="panel-heading-actions">
+                    <button class="button button--quiet button--sm" type="button" id="toggle-custom-job-button">
+                      <span>+ Custom / Edit Job</span>
+                    </button>
+                  </div>
+                </div>
 
-            <form id="job-form" novalidate>
-              <div class="form-grid">
-                <label class="form-span-full">
-                  <span>Role title <em aria-hidden="true">*</em></span>
-                  <input id="job-title" name="title" type="text" autocomplete="organization-title" placeholder="e.g. Backend Engineering Intern or Python Developer" required />
-                </label>
-                <label>
-                  <span>Company <span class="optional">optional</span></span>
-                  <input id="job-company" name="company" type="text" autocomplete="organization" placeholder="e.g. Acme Labs" />
-                  <small>Used only to label the assessment.</small>
-                </label>
-                <label>
-                  <span>City / Location <span class="optional">optional</span></span>
-                  <input id="job-city" name="city" type="text" placeholder="e.g. Pune, Bangalore, Remote" />
-                  <small>City context for job benchmarks and live search.</small>
-                </label>
-                <div class="form-span-full live-job-search-strip">
-                  <button class="button button--secondary button--sm" type="button" id="quick-live-jobs-button">
-                    <span>⚡ Find Live Postings (Jooble & JSearch)</span>
+                <!-- Unified Job Search Bar & Category Pills -->
+                <form id="job-search-form" class="job-search-bar" novalidate>
+                  <div class="search-input-wrap">
+                    <span class="search-icon" aria-hidden="true">⌕</span>
+                    <input
+                      id="job-search-query"
+                      type="search"
+                      maxlength="160"
+                      placeholder="Search for jobs, roles, companies or skills (e.g. Python Backend Intern)..."
+                      aria-label="Search for jobs, roles, companies or skills"
+                    />
+                  </div>
+                  <input
+                    id="job-search-location"
+                    class="search-location-input"
+                    type="text"
+                    maxlength="160"
+                    placeholder="City (e.g. Bengaluru)"
+                    aria-label="Location filter"
+                  />
+                  <input
+                    id="job-search-country"
+                    type="hidden"
+                    value="in"
+                  />
+                  <button class="button button--primary" type="submit" id="search-jobs-button">
+                    <span>Search Live</span>
                   </button>
-                  <span class="live-job-hint">Fetches real tech jobs in India matching this title & location</span>
+                </form>
+
+                <div class="category-pills" id="role-category-pills" role="tablist" aria-label="Role category filters">
+                  <button class="category-pill is-active" type="button" data-category="all">All Roles</button>
+                  <button class="category-pill" type="button" data-category="software">Software Engineer</button>
+                  <button class="category-pill" type="button" data-category="backend">Backend</button>
+                  <button class="category-pill" type="button" data-category="frontend">Frontend</button>
+                  <button class="category-pill" type="button" data-category="ai">AI / ML</button>
+                  <button class="category-pill" type="button" data-category="data">Data Science</button>
+                  <button class="category-pill" type="button" data-category="internship">Internship</button>
                 </div>
-                <label class="form-span-full">
-                  <span>Source posting URL <span class="optional">optional for manual entry / real-time jobs</span></span>
-                  <input id="job-source-url" name="source_url" type="url" inputmode="url" autocomplete="url" placeholder="https://company.example/careers/role (optional)" />
-                  <small>Optional for real-time jobs or manual skill benchmark entry. Provide a link if you have a specific posting URL.</small>
-                </label>
-                <label class="form-span-full">
-                  <span>Job-description text <span class="optional">optional — auto-generates benchmark requirements if empty</span></span>
-                  <textarea id="job-description" name="description" rows="6" placeholder="Paste the requirements here, or leave blank to automatically generate industry-standard benchmark requirements for this role."></textarea>
-                  <small>The app sends this text only to the local backend for requirement extraction.</small>
-                </label>
-              </div>
-              <div class="form-actions">
-                <button class="button button--primary" type="submit" id="save-job-button">
-                  <span>Save job requirements</span>
-                  <span class="button-arrow" aria-hidden="true">→</span>
-                </button>
-                <p class="form-feedback" id="job-form-feedback" role="status" aria-live="polite"></p>
-              </div>
-            </form>
-          </article>
 
-          <article class="panel intake-panel intake-panel--repository" aria-labelledby="repository-heading">
-            <div class="panel-heading">
-              <span class="step-number" aria-hidden="true">02</span>
-              <div>
-                <p class="section-kicker">Repository evidence</p>
-                <h2 id="repository-heading">Connect the code</h2>
-              </div>
-            </div>
-            <p class="panel-intro">Use a repository URL. Authentication for private repositories belongs on the server, never in this page.</p>
+                <p class="form-feedback" id="job-search-feedback" role="status" aria-live="polite"></p>
 
-            <div class="saved-jobs-bar" id="saved-repos-bar" hidden>
-              <label for="saved-repos-select"><span>Assessed repositories</span></label>
-              <div class="saved-jobs-controls">
-                <select id="saved-repos-select" aria-label="Select an assessed repository">
-                  <option value="">-- Or switch to an assessed repository --</option>
-                </select>
-                <button class="button button--danger-quiet" type="button" id="delete-repo-button" title="Delete selected repository" disabled>Delete</button>
-              </div>
-            </div>
+                <!-- Interactive Job Cards Grid (Saved + Seeded + Live Search Results) -->
+                <div class="job-cards-list" id="job-cards-list" aria-live="polite"></div>
 
-            <form id="repository-form" novalidate>
-              <label>
-                <span>GitHub repository URL <em aria-hidden="true">*</em></span>
-                <input id="repository-url" name="repository_url" type="url" inputmode="url" placeholder="https://github.com/owner/repository" required />
-                <small id="repository-help">Connect any public or token-authenticated GitHub repository for evidence assessment.</small>
-              </label>
-              <div class="form-actions">
-                <button class="button button--secondary" type="submit" id="connect-repository-button">
-                  <span>Connect and assess</span>
-                  <span class="button-arrow" aria-hidden="true">→</span>
-                </button>
-                <button class="button button--quiet" type="button" id="browse-repos-button" title="Fetch public repositories for a GitHub profile">
-                  <span>Fetch profile repos</span>
-                </button>
-                <button class="button button--danger-quiet" type="button" id="disconnect-repository-button" hidden>
-                  Disconnect repository
-                </button>
-                <p class="form-feedback" id="repository-form-feedback" role="status" aria-live="polite"></p>
-              </div>
-              <div class="user-repos-drawer" id="user-repos-drawer" hidden>
-                <div class="user-repos-drawer-head">
-                  <p class="user-repos-title" id="user-repos-title">Public Repositories</p>
-                  <button class="icon-button" type="button" id="close-user-repos-button" aria-label="Close repository drawer">×</button>
+                <!-- Hidden legacy container kept for compatibility -->
+                <div class="job-search-results" id="job-search-results" hidden aria-live="polite"></div>
+
+                <!-- Saved jobs selector bar + Custom / Edit Job Form Drawer -->
+                <div class="saved-jobs-bar" id="saved-jobs-bar">
+                  <div class="saved-jobs-controls">
+                    <label for="saved-jobs-select" class="sr-only"><span>Saved job postings</span></label>
+                    <select id="saved-jobs-select" aria-label="Select a previously saved job">
+                      <option value="">-- Quick switch saved job posting --</option>
+                    </select>
+                    <button class="button button--quiet button--sm" type="button" id="quick-live-jobs-button">
+                      <span>⚡ Live Jooble/JSearch</span>
+                    </button>
+                    <button class="button button--danger-quiet button--sm" type="button" id="delete-job-button" title="Delete selected job" disabled>
+                      Delete Job
+                    </button>
+                  </div>
                 </div>
-                <div class="user-repos-list" id="user-repos-list"></div>
-              </div>
-            </form>
 
+                <div class="custom-job-drawer" id="custom-job-drawer" hidden>
+                  <div class="drawer-header">
+                    <h3 id="custom-job-form-heading">Add or Edit Job Requirements</h3>
+                    <div class="drawer-header-actions">
+                      <button class="button button--quiet button--sm" type="button" id="new-job-mode-button">New Blank Role</button>
+                      <button class="icon-button" type="button" id="close-custom-job-button" aria-label="Close job form">×</button>
+                    </div>
+                  </div>
+                  <form id="job-form" novalidate>
+                    <div class="form-grid">
+                      <label class="form-span-full">
+                        <span>Role title <em aria-hidden="true">*</em></span>
+                        <input id="job-title" name="title" type="text" autocomplete="organization-title" placeholder="e.g. Software Engineer Intern or Backend Developer" required />
+                      </label>
+                      <label>
+                        <span>Company <span class="optional">optional</span></span>
+                        <input id="job-company" name="company" type="text" autocomplete="organization" placeholder="e.g. Google, Nexus Cloud" />
+                      </label>
+                      <label>
+                        <span>City / Location <span class="optional">optional</span></span>
+                        <input id="job-city" name="city" type="text" placeholder="e.g. Bengaluru, Pune, Remote" />
+                      </label>
+                      <label class="form-span-full">
+                        <span>Source posting URL <span class="optional">retained for traceability</span></span>
+                        <div class="url-fetch-row">
+                          <input id="job-source-url" name="source_url" type="url" inputmode="url" autocomplete="url" placeholder="https://careers.company.example/jobs/role" />
+                          <button class="button button--quiet button--sm" type="button" id="fetch-job-url-button">
+                            <span>Fetch URL Text</span>
+                          </button>
+                        </div>
+                      </label>
+                      <label class="form-span-full">
+                        <span>Job-description text <span class="optional">auto-generates role benchmark if left empty</span></span>
+                        <textarea id="job-description" name="description" rows="5" placeholder="Paste the job requirements here, or leave blank to synthesize benchmark requirements for this title."></textarea>
+                      </label>
+                    </div>
+                    <div class="form-actions">
+                      <button class="button button--primary" type="submit" id="save-job-button">
+                        <span>Save job requirements</span>
+                        <span class="button-arrow" aria-hidden="true">→</span>
+                      </button>
+                      <button class="button button--secondary" type="button" id="update-job-button" hidden>
+                        <span>Update selected job</span>
+                      </button>
+                      <p class="form-feedback" id="job-form-feedback" role="status" aria-live="polite"></p>
+                    </div>
+                  </form>
+                </div>
+              </article>
 
-            <div class="repo-loop-hint" aria-label="How assessment works">
-              <div class="repo-loop-step">
-                <strong>Deterministic AST Scan</strong>
-                <span>Inspects routes, queries, classes, and assertions without cloning or running code.</span>
-              </div>
-              <div class="repo-loop-step">
-                <strong>Transparent Citations</strong>
-                <span>Every signal maps to an exact file path, 1-indexed line range, and code excerpt.</span>
-              </div>
-              <div class="repo-loop-step">
-                <strong>Live Proof Delta</strong>
-                <span>Reassesses automatically on new commits via push webhook or 10s polling.</span>
-              </div>
+              <!-- 2. Connect Your GitHub Repository -->
+              <article class="panel neon-panel intake-panel intake-panel--repository" aria-labelledby="repository-heading">
+                <div class="panel-heading-bar">
+                  <div class="panel-heading">
+                    <span class="step-number" aria-hidden="true">2</span>
+                    <div>
+                      <h2 id="repository-heading">2. Connect Your GitHub Repository</h2>
+                      <p class="panel-sub" id="repository-help">Confirm your repository URL or @username to inspect actual source code without executing it</p>
+                    </div>
+                  </div>
+                  <div class="saved-jobs-controls" id="saved-repos-bar" hidden>
+                    <label for="saved-repos-select" class="sr-only"><span>Assessed repositories</span></label>
+                    <select id="saved-repos-select" aria-label="Select an assessed repository">
+                      <option value="">-- Switch repository --</option>
+                    </select>
+                    <button class="button button--danger-quiet button--sm" type="button" id="delete-repo-button" title="Delete selected repository" disabled>Delete</button>
+                  </div>
+                </div>
+
+                <form id="repository-form" novalidate>
+                  <div class="repo-connect-row">
+                    <div class="repo-input-wrap">
+                      <span class="repo-input-icon" aria-hidden="true">⌘</span>
+                      <input
+                        id="repository-url"
+                        name="repository_url"
+                        type="url"
+                        inputmode="url"
+                        placeholder="https://github.com/username/your-repo or @username"
+                        aria-label="GitHub repository URL"
+                        required
+                      />
+                    </div>
+                    <button class="button button--quiet" type="button" id="validate-repo-button">
+                      <span>Validate Repository</span>
+                    </button>
+                    <button class="button button--quiet" type="button" id="browse-repos-button" title="Fetch public repositories for a GitHub profile">
+                      <span>Profile Repos</span>
+                    </button>
+                    <button class="button button--danger-quiet" type="button" id="disconnect-repository-button" hidden>
+                      Disconnect
+                    </button>
+                  </div>
+                  <p class="form-feedback" id="repository-form-feedback" role="status" aria-live="polite"></p>
+
+                  <div class="user-repos-drawer" id="user-repos-drawer" hidden>
+                    <div class="user-repos-drawer-head">
+                      <p class="user-repos-title" id="user-repos-title">Public Repositories</p>
+                      <button class="icon-button" type="button" id="close-user-repos-button" aria-label="Close repository drawer">×</button>
+                    </div>
+                    <div class="user-repos-list" id="user-repos-list"></div>
+                  </div>
+
+                  <!-- 3. Review & Start Analysis Bar -->
+                  <div class="review-start-bar" id="review-start-bar">
+                    <div class="review-start-head">
+                      <span class="step-number" aria-hidden="true">3</span>
+                      <strong>3. Review &amp; Start Analysis</strong>
+                    </div>
+                    <div class="review-start-grid">
+                      <div class="review-summary-box">
+                        <span class="review-box-label">Selected Job</span>
+                        <strong id="review-selected-job-title">No job selected yet</strong>
+                        <span class="review-box-sub" id="review-selected-job-meta">Select a job card above or save custom requirements</span>
+                      </div>
+                      <div class="review-summary-box">
+                        <span class="review-box-label">GitHub Repository</span>
+                        <strong id="review-selected-repo-name">No repository linked</strong>
+                        <span class="review-box-sub" id="review-selected-repo-meta">Enter a GitHub URL and validate or start analysis</span>
+                      </div>
+                      <div class="review-cta-box">
+                        <button class="button button--neon-cta" type="submit" id="connect-repository-button">
+                          <span>Start Analysis</span>
+                          <span class="button-arrow" aria-hidden="true">→</span>
+                        </button>
+                        <small class="cta-caption">Bounded read-only AST &amp; pattern scan</small>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+              </article>
             </div>
-          </article>
+
+            <!-- Right Context Column: Job Details + Key Requirements + Repository Preview -->
+            <aside class="setup-context" aria-label="Selected job and repository preview">
+              <article class="panel neon-panel context-card" id="selected-job-details-card">
+                <div class="card-label-row">
+                  <p class="card-label">Job Details</p>
+                  <span class="data-state" id="setup-job-badge">Awaiting selection</span>
+                </div>
+                <div class="job-details-header" id="setup-job-header">
+                  <h3 id="setup-job-title">Select a Job Opportunity</h3>
+                  <p class="job-details-company" id="setup-job-company">Choose a role from the cards or paste a real job posting.</p>
+                  <div class="job-details-tags" id="setup-job-tags"></div>
+                </div>
+                <div class="job-details-reqs">
+                  <h4>Key Requirements <span class="req-count-pill" id="setup-req-count">0</span></h4>
+                  <ul class="key-reqs-list" id="setup-key-reqs-list">
+                    <li class="reqs-empty">Supported requirements extracted from the posting will appear here with line traceability.</li>
+                  </ul>
+                </div>
+              </article>
+
+              <article class="panel neon-panel context-card" id="repository-preview-card">
+                <div class="card-label-row">
+                  <p class="card-label">Repository Preview</p>
+                  <span class="data-state" id="repository-state">Not connected</span>
+                </div>
+                <div class="repo-preview-body" id="setup-repo-preview">
+                  <strong class="repo-preview-name" id="setup-repo-name">No repository validated</strong>
+                  <p class="repo-preview-desc" id="setup-repo-desc">Enter a GitHub URL and click "Validate Repository" or "Start Analysis".</p>
+                </div>
+                <dl class="facts-list" id="repository-facts">
+                  <div><dt>Repository</dt><dd>—</dd></div>
+                  <div><dt>Branch</dt><dd>—</dd></div>
+                  <div><dt>Commit</dt><dd>—</dd></div>
+                </dl>
+              </article>
+            </aside>
+          </div>
         </section>
 
-        <section class="notice notice--info" id="scope-notice" aria-label="Assessment scope">
-          <span class="notice-icon" aria-hidden="true">i</span>
-          <p><strong>How to read this dashboard:</strong> a skill marked “not demonstrated in this scope” means the scan did not return supporting evidence. It is not a verdict that the student does not have that skill.</p>
-        </section>
-
-        <section class="dashboard" aria-label="Assessment dashboard">
-          <div class="dashboard-heading">
+        <!-- =====================================================================
+             VIEW 2: SKILL ANALYSIS RESULTS (Reference Image 2)
+             ===================================================================== -->
+        <section class="view-section" id="view-result" aria-labelledby="skills-heading">
+          <!-- Page Header Row -->
+          <div class="results-topbar">
             <div>
-              <p class="section-kicker">Live assessment</p>
-              <h2>Evidence overview</h2>
+              <p class="section-kicker">Step 02 · Deterministic Portfolio Verification</p>
+              <h1 class="view-title">Skill Analysis Results</h1>
+              <p class="view-subtitle">Here's how your code matches the job requirements, with real evidence from your GitHub repository.</p>
             </div>
+            <div class="results-topbar-right">
+              <div class="last-analyzed-box" id="last-analyzed-box">
+                <span class="last-analyzed-label">Last Analyzed</span>
+                <strong id="result-last-analyzed-time">Not yet analyzed</strong>
+                <span class="last-analyzed-commit" id="result-last-analyzed-commit">Commit: —</span>
+              </div>
+              <div class="results-actions">
+                <button class="button button--primary" type="button" id="reanalyze-button" disabled>
+                  <span>↻ Reanalyze</span>
+                </button>
+                <button class="button button--quiet" type="button" id="check-monitor-button" disabled>
+                  <span>Check Commits</span>
+                </button>
+                <button class="button button--secondary" type="button" id="view-comparison-button" disabled>
+                  <span>Compare Proof Delta →</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Context Links, OpenAI Status & Expandable Inspected Scope Drawer -->
+          <div class="results-context-strip">
             <div class="context-links" id="context-links" aria-live="polite">
               <span class="context-empty">No connected assessment yet</span>
             </div>
+            <div class="results-meta-badges">
+              <span class="data-state" id="llm-mode-badge">Deterministic Mode</span>
+              <button class="button button--quiet button--sm" type="button" id="toggle-scope-drawer-button">
+                <span>📂 Inspected &amp; Skipped Files</span>
+              </button>
+            </div>
+            <div class="notice notice--info notice--compact" id="scope-notice" aria-label="Assessment scope">
+              <span class="notice-icon" aria-hidden="true">i</span>
+              <p><strong>Scope rule:</strong> “not demonstrated in this inspected scope” means the bounded scan did not return supporting code evidence—never that the developer lacks the skill.</p>
+            </div>
           </div>
 
-          <div class="summary-grid">
-            <article class="panel summary-card summary-card--fit" id="assessment-summary-card">
-              <div class="card-label-row">
-                <p class="card-label">Role fit</p>
-                <span class="data-state" id="assessment-state">Awaiting assessment</span>
+          <details class="panel neon-panel scope-files-drawer" id="scope-files-drawer">
+            <summary>
+              <strong id="scope-drawer-summary-title">Repository Inspection Scope (0 inspected, 0 skipped)</strong>
+              <span class="optional">Click to view exact inspected source files and skipped file reasons</span>
+            </summary>
+            <div class="scope-files-grid">
+              <div class="scope-files-col">
+                <h4>✓ Inspected Files (AST &amp; Pattern Scanned)</h4>
+                <ul class="scope-file-list" id="scope-inspected-list">
+                  <li class="reqs-empty">Connect a repository to view inspected files.</li>
+                </ul>
               </div>
-              <div class="fit-content">
-                <strong class="fit-score" id="fit-score">—</strong>
-                <div>
-                  <p class="fit-title" id="fit-title">No score received</p>
-                  <p class="muted" id="fit-description">A score is shown only when the assessment API returns its calculation or summary.</p>
+              <div class="scope-files-col">
+                <h4>⊘ Skipped Files &amp; Safety Filters</h4>
+                <ul class="scope-file-list" id="scope-skipped-list">
+                  <li class="reqs-empty">No skipped files reported.</li>
+                </ul>
+              </div>
+            </div>
+          </details>
+
+          <!-- Top KPI Strip: Radial Overall Match Gauge + 4 Status Counter Cards -->
+          <div class="kpi-strip">
+            <article class="panel neon-panel kpi-gauge-card" id="assessment-summary-card">
+              <div class="gauge-wrap">
+                <svg class="radial-gauge" viewBox="0 0 120 120" aria-hidden="true">
+                  <circle class="radial-gauge__track" cx="60" cy="60" r="50" />
+                  <circle class="radial-gauge__fill" id="fit-gauge-circle" cx="60" cy="60" r="50" stroke-dasharray="314.16" stroke-dashoffset="314.16" />
+                </svg>
+                <div class="gauge-center">
+                  <span class="gauge-label">Overall Match</span>
+                  <strong class="fit-score" id="fit-score">—</strong>
                 </div>
               </div>
-              <div class="fit-formula" id="fit-formula">No calculation has been reported.</div>
-            </article>
-
-            <article class="panel summary-card" id="repository-summary-card">
-              <div class="card-label-row">
-                <p class="card-label">Inspected repository</p>
-                <span class="data-state" id="repository-state">Not connected</span>
+              <div class="gauge-copy">
+                <div class="card-label-row">
+                  <p class="fit-title" id="fit-title">No score received</p>
+                  <span class="data-state" id="assessment-state">Awaiting assessment</span>
+                </div>
+                <p class="muted" id="fit-description">Connect a job and GitHub repository to compute traceable evidence fit.</p>
+                <div class="fit-formula" id="fit-formula">Required=1.0, Preferred=0.5 · Demonstrated=1.0, Partial=0.5, Not in scope=0.</div>
               </div>
-              <dl class="facts-list" id="repository-facts">
-                <div><dt>Repository</dt><dd>—</dd></div>
-                <div><dt>Branch</dt><dd>—</dd></div>
-                <div><dt>Commit</dt><dd>—</dd></div>
-              </dl>
             </article>
 
-            <article class="panel summary-card" id="monitor-summary-card">
+            <div class="kpi-counters-grid">
+              <button class="panel neon-panel kpi-stat-card kpi-stat-card--demonstrated" type="button" data-status-filter="demonstrated" id="kpi-card-demonstrated">
+                <span class="kpi-stat-icon" aria-hidden="true">✓</span>
+                <strong class="kpi-stat-num" id="kpi-demonstrated-count">0</strong>
+                <span class="kpi-stat-label">Demonstrated</span>
+              </button>
+              <button class="panel neon-panel kpi-stat-card kpi-stat-card--partial" type="button" data-status-filter="partially_demonstrated" id="kpi-card-partial">
+                <span class="kpi-stat-icon" aria-hidden="true">◐</span>
+                <strong class="kpi-stat-num" id="kpi-partial-count">0</strong>
+                <span class="kpi-stat-label">Partial Evidence</span>
+              </button>
+              <button class="panel neon-panel kpi-stat-card kpi-stat-card--missing" type="button" data-status-filter="not_demonstrated" id="kpi-card-missing">
+                <span class="kpi-stat-icon" aria-hidden="true">○</span>
+                <strong class="kpi-stat-num" id="kpi-missing-count">0</strong>
+                <span class="kpi-stat-label">Not Demonstrated</span>
+              </button>
+              <button class="panel neon-panel kpi-stat-card kpi-stat-card--total is-active" type="button" data-status-filter="all" id="kpi-card-total">
+                <span class="kpi-stat-icon" aria-hidden="true">∑</span>
+                <strong class="kpi-stat-num" id="kpi-total-count">0</strong>
+                <span class="kpi-stat-label">Total Skills</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Master-Detail Workspace: Left Skill Breakdown Grid + Right Code Evidence & Recommendations -->
+          <div class="analysis-workspace">
+            <!-- Left/Center: Skill Breakdown -->
+            <div class="analysis-left">
+              <div class="section-heading-row">
+                <div>
+                  <h2 id="skills-heading">Skill Breakdown</h2>
+                  <p class="section-note" id="skills-note">Detailed analysis of each skill with evidence from your code.</p>
+                </div>
+                <div class="skill-filter-bar">
+                  <input
+                    id="skill-filter-search"
+                    class="skill-search-input"
+                    type="search"
+                    placeholder="Filter skills..."
+                    aria-label="Filter skills by keyword"
+                  />
+                  <select id="skill-filter-status" class="skill-status-select" aria-label="Filter skills by status">
+                    <option value="all">All Statuses</option>
+                    <option value="demonstrated">Demonstrated</option>
+                    <option value="partially_demonstrated">Partial Evidence</option>
+                    <option value="not_demonstrated">Not Demonstrated in Scope</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="skill-grid" id="skills-grid" aria-live="polite">
+                <div class="empty-state empty-state--wide">
+                  <span class="empty-state-icon" aria-hidden="true">⌘</span>
+                  <div>
+                    <h3>Nothing assessed yet</h3>
+                    <p>Select a job posting and connect a repository in Setup to inspect code evidence.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Column: Code Evidence Inspector + Recommendations -->
+            <aside class="analysis-right" aria-label="Code evidence inspector and recommendations">
+              <article class="panel neon-panel evidence-inspector-panel" id="evidence-inspector-panel">
+                <div class="inspector-header">
+                  <div>
+                    <p class="section-kicker">Code Evidence</p>
+                    <h3 id="inspector-skill-title">Select a skill card</h3>
+                  </div>
+                  <span class="status-chip status-chip--unknown" id="inspector-skill-status">Awaiting selection</span>
+                </div>
+
+                <div class="inspector-file-tabs" id="inspector-file-tabs" role="tablist" aria-label="Evidence files"></div>
+
+                <div class="inspector-code-box" id="inspector-code-box">
+                  <div class="inspector-code-head" id="inspector-code-head">
+                    <span class="evidence-file" id="inspector-file-path">No file selected</span>
+                    <span class="evidence-line" id="inspector-line-range">L—</span>
+                  </div>
+                  <pre class="code-excerpt inspector-pre" id="inspector-code-excerpt">Click any skill card on the left ("View Evidence") to inspect the exact repository file, 1-indexed line numbers, and source code excerpt.</pre>
+                </div>
+
+                <div class="inspector-why-box" id="inspector-why-box">
+                  <h4>Why this demonstrates the skill &amp; Scope Boundary</h4>
+                  <p id="inspector-why-text">Every demonstrated or partial signal is verified against actual inspected repository lines. Comments and docstrings are ignored.</p>
+                  <p class="inspector-claim-boundary" id="inspector-claim-boundary"></p>
+                  <ul class="inspector-limits-list" id="inspector-limits-list"></ul>
+                </div>
+              </article>
+
+              <article class="panel neon-panel guidance-panel" aria-labelledby="guidance-heading">
+                <div class="section-heading-row section-heading-row--compact">
+                  <div>
+                    <p class="section-kicker">Actionable Next-Proof Plan</p>
+                    <h2 id="guidance-heading">Recommendations</h2>
+                  </div>
+                </div>
+                <p class="guidance-disclaimer">Personalized suggestions to build verifiable repository evidence for this role (future tasks, not existing claims).</p>
+                <div class="guidance-list" id="guidance-list" aria-live="polite">
+                  <div class="history-empty">No evidence gaps or recommendations received yet.</div>
+                </div>
+              </article>
+            </aside>
+          </div>
+
+          <!-- Monitoring, Reassessment Events, History & Telegram Bar -->
+          <div class="results-lower-grid">
+            <article class="panel neon-panel summary-card" id="monitor-summary-card">
               <div class="card-label-row">
-                <p class="card-label">Change monitoring</p>
+                <p class="card-label">Change Monitoring &amp; Scope</p>
                 <span class="data-state" id="monitor-state">Not started</span>
               </div>
               <dl class="facts-list" id="monitor-facts">
@@ -266,100 +573,225 @@
                 <div><dt>Next action</dt><dd>Connect a repository</dd></div>
               </dl>
               <div class="monitor-actions">
-                <button class="text-button" id="check-monitor-button" type="button" disabled>Check monitor now <span aria-hidden="true">↗</span></button>
-                <span class="monitor-note">Server polling status refreshes here automatically.</span>
+                <button class="button button--quiet button--sm" id="toggle-monitor-button" type="button" disabled>Pause Monitor</button>
+                <span class="monitor-note" id="inspected-files-summary">Bounded read-only scan (max 20 files).</span>
+              </div>
+            </article>
+
+            <article class="panel neon-panel reassessment-panel" id="reassessment-panel" aria-labelledby="reassessment-heading">
+              <div class="event-icon" id="event-icon" aria-hidden="true">↻</div>
+              <div class="event-copy">
+                <p class="section-kicker">Automatic Reassessment Event</p>
+                <h2 id="reassessment-heading">No repository event received</h2>
+                <p id="reassessment-message">Once the server detects a different commit SHA and completes reassessment, the before-and-after evidence will appear here.</p>
+                <div class="event-meta" id="reassessment-meta"></div>
+              </div>
+            </article>
+
+            <article class="panel neon-panel telegram-panel" id="telegram-panel" aria-labelledby="telegram-heading">
+              <div>
+                <p class="section-kicker">Optional Commit Alert</p>
+                <h2 id="telegram-heading">Telegram Reassessment Alert</h2>
+                <p id="telegram-description">Pair Telegram to receive instant commit proof delta alerts.</p>
+                <div class="telegram-pairing" id="telegram-pairing" hidden></div>
+              </div>
+              <div class="telegram-actions">
+                <span class="data-state" id="telegram-state">Not connected</span>
+                <button class="button button--quiet button--sm" type="button" id="telegram-pair-button"><span>Pair Telegram</span></button>
               </div>
             </article>
           </div>
+        </section>
 
-          <section class="panel reassessment-panel" id="reassessment-panel" aria-labelledby="reassessment-heading">
-            <div class="event-icon" id="event-icon" aria-hidden="true">↻</div>
-            <div class="event-copy">
-              <p class="section-kicker">Automatic reassessment event</p>
-              <h2 id="reassessment-heading">No repository event received</h2>
-              <p id="reassessment-message">Once the server detects a different commit SHA and completes reassessment, the before-and-after evidence will appear here.</p>
-              <div class="event-meta" id="reassessment-meta"></div>
-            </div>
-            <button class="button button--quiet" type="button" id="view-comparison-button" disabled>View comparison</button>
-          </section>
+        <!-- =====================================================================
+             VIEW 3: JOB VS. REPOSITORY COMPARISON & PROOF DELTA (Reference Image 3)
+             ===================================================================== -->
+        <section class="view-section" id="view-compare" aria-labelledby="comparison-heading">
+          <!-- Top Header Row -->
+          <div class="compare-header-grid">
+            <div class="compare-title-block">
+              <p class="section-kicker">Step 03 · Proof Delta &amp; Evolution</p>
+              <h1 class="view-title" id="comparison-heading">Job vs. Your Repository</h1>
+              <p class="view-subtitle">Compare your current skills with job requirements to see where you match and how your code evidence improved across commits.</p>
 
-          <section class="panel telegram-panel" id="telegram-panel" aria-labelledby="telegram-heading">
-            <div>
-              <p class="section-kicker">Optional commit alert</p>
-              <h2 id="telegram-heading">Telegram reassessment notification</h2>
-              <p id="telegram-description">Connect a repository to see whether server-side Telegram alerts are available.</p>
-              <div class="telegram-pairing" id="telegram-pairing" hidden></div>
+              <article class="panel neon-panel compare-context-card" id="compare-repo-card">
+                <span class="card-label">Selected Repository</span>
+                <strong id="compare-repo-name">No repository connected</strong>
+                <div class="compare-repo-badges" id="compare-repo-badges">
+                  <span class="meta-pill">Connect a repository in Setup</span>
+                </div>
+              </article>
             </div>
-            <div class="telegram-actions">
-              <span class="data-state" id="telegram-state">Not connected</span>
-              <button class="button button--quiet" type="button" id="telegram-pair-button">Pair Telegram</button>
-            </div>
-          </section>
 
-          <section class="dashboard-section" aria-labelledby="skills-heading">
-            <div class="section-heading-row">
-              <div>
-                <p class="section-kicker">Assessment details</p>
-                <h2 id="skills-heading">Skills and repository evidence</h2>
-              </div>
-              <p class="section-note" id="skills-note">Evidence paths and excerpts appear only after inspection.</p>
+            <div class="compare-job-selector-block">
+              <article class="panel neon-panel compare-context-card" id="compare-job-card">
+                <div class="card-label-row">
+                  <span class="card-label">Selected Job / Internship</span>
+                  <span class="data-state" id="compare-delta-badge">Baseline</span>
+                </div>
+                <strong id="compare-job-title">No job selected</strong>
+                <span class="compare-job-company" id="compare-job-company">—</span>
+                <div class="compare-snapshot-controls">
+                  <label for="compare-snapshot-select"><span>Compare revisions:</span></label>
+                  <select id="compare-snapshot-select" aria-label="Select snapshot pair to compare">
+                    <option value="">Latest vs. Previous Commit</option>
+                  </select>
+                </div>
+              </article>
             </div>
-            <div class="skill-grid" id="skills-grid" aria-live="polite">
-              <div class="empty-state empty-state--wide">
-                <span class="empty-state-icon" aria-hidden="true">⌘</span>
+          </div>
+
+          <!-- Middle Row: Before Analysis | After Analysis | Right Analytics Column -->
+          <div class="compare-middle-grid">
+            <!-- Before Analysis Card -->
+            <article class="panel neon-panel compare-stage-card" id="compare-before-card">
+              <div class="compare-stage-header">
                 <div>
-                  <h3>Nothing assessed yet</h3>
-                  <p>Connect a job posting and repository to receive evidence-backed skill assessments.</p>
+                  <h2>Before Analysis</h2>
+                  <p id="compare-before-sub">Baseline snapshot before latest commit</p>
+                </div>
+                <div class="compare-score-badge compare-score-badge--before">
+                  <strong id="compare-before-score">—</strong>
+                  <span>Match</span>
                 </div>
               </div>
-            </div>
-          </section>
+              <div class="compare-bars-head">
+                <span>Skill</span>
+                <span>Requirement</span>
+                <span>Evidence Status (Before)</span>
+              </div>
+              <div class="compare-bars-list" id="compare-before-bars">
+                <p class="history-empty">Connect a repository to view baseline skill levels.</p>
+              </div>
+            </article>
 
-          <section class="dashboard-lower-grid">
-            <article class="panel history-panel" aria-labelledby="history-heading">
+            <!-- After Analysis Card -->
+            <article class="panel neon-panel compare-stage-card compare-stage-card--after" id="compare-after-card">
+              <div class="compare-stage-header">
+                <div>
+                  <h2>After Analysis</h2>
+                  <p id="compare-after-sub">Current repository analysis at latest commit</p>
+                </div>
+                <div class="compare-score-badge compare-score-badge--after">
+                  <strong id="compare-after-score">—</strong>
+                  <span>Match</span>
+                </div>
+              </div>
+              <div class="compare-bars-head">
+                <span>Skill</span>
+                <span>Requirement</span>
+                <span>Evidence Status (After)</span>
+              </div>
+              <div class="compare-bars-list" id="compare-after-bars">
+                <p class="history-empty">Connect a repository to view current skill levels.</p>
+              </div>
+            </article>
+
+            <!-- Right Analytics Column: Distribution + Top Skill Gaps + Strengths -->
+            <aside class="compare-analytics-col">
+              <article class="panel neon-panel analytics-card">
+                <h3>Skill Match Distribution</h3>
+                <div class="dist-bar-stacked" id="compare-dist-bar" aria-hidden="true">
+                  <div class="dist-segment dist-segment--demo" id="dist-seg-demo" style="width: 0%"></div>
+                  <div class="dist-segment dist-segment--part" id="dist-seg-part" style="width: 0%"></div>
+                  <div class="dist-segment dist-segment--miss" id="dist-seg-miss" style="width: 100%"></div>
+                </div>
+                <ul class="dist-legend" id="compare-dist-legend">
+                  <li><span class="dot dot--demo"></span><span>Demonstrated</span><strong id="dist-label-demo">0 (0%)</strong></li>
+                  <li><span class="dot dot--part"></span><span>Partial Evidence</span><strong id="dist-label-part">0 (0%)</strong></li>
+                  <li><span class="dot dot--miss"></span><span>Not Demonstrated in Scope</span><strong id="dist-label-miss">0 (0%)</strong></li>
+                </ul>
+              </article>
+
+              <article class="panel neon-panel analytics-card">
+                <h3>Top Skill Gaps (After)</h3>
+                <div class="analytics-list" id="compare-top-gaps">
+                  <p class="history-empty">No skill gaps identified yet.</p>
+                </div>
+              </article>
+
+              <article class="panel neon-panel analytics-card">
+                <h3>Your Strengths (After)</h3>
+                <div class="analytics-list" id="compare-strengths">
+                  <p class="history-empty">Demonstrated repository strengths will appear here.</p>
+                </div>
+              </article>
+            </aside>
+          </div>
+
+          <!-- Bottom Full-Width Requirements Comparison Table + Snapshot History -->
+          <div class="compare-bottom-grid">
+            <article class="panel neon-panel comparison-table-panel" id="comparison-panel">
               <div class="section-heading-row section-heading-row--compact">
                 <div>
-                  <p class="section-kicker">Assessment history</p>
-                  <h2 id="history-heading">Before and after</h2>
+                  <p class="section-kicker">Traceable Proof Delta Matrix</p>
+                  <h2>Requirements Comparison</h2>
                 </div>
-                <button class="text-button" type="button" id="refresh-history-button" disabled>Refresh</button>
+                <div class="table-filter-controls">
+                  <input
+                    id="compare-table-search"
+                    class="skill-search-input"
+                    type="search"
+                    placeholder="Search requirements or skills..."
+                    aria-label="Search requirements comparison table"
+                  />
+                  <select id="compare-table-filter" class="skill-status-select" aria-label="Filter comparison rows by status">
+                    <option value="all">All Status</option>
+                    <option value="changed">Changed Only (Proof Delta)</option>
+                    <option value="demonstrated">Demonstrated</option>
+                    <option value="partially_demonstrated">Partial Evidence</option>
+                    <option value="not_demonstrated">Not Demonstrated in Scope</option>
+                  </select>
+                  <button class="icon-button" type="button" id="close-comparison-button" title="Reset filter" aria-label="Reset comparison filter">↻</button>
+                </div>
               </div>
-              <p class="history-intro">Each item is a server-recorded assessment snapshot. Duplicate commits should not produce a second snapshot.</p>
+
+              <div class="comparison-meta" id="comparison-meta"></div>
+
+              <div class="req-table-wrap">
+                <table class="req-comparison-table" aria-label="Requirements comparison table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Requirement</th>
+                      <th>Your Evidence (Before)</th>
+                      <th>Your Evidence (After)</th>
+                      <th>Status</th>
+                      <th>Proof Delta</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="compare-table-body">
+                    <tr>
+                      <td colspan="7" class="history-empty">Connect a job and repository to populate the requirements comparison table.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Detailed Evidence Diff Cards (Added/Removed Excerpts) -->
+              <div class="comparison-grid" id="comparison-grid"></div>
+            </article>
+
+            <article class="panel neon-panel history-panel" aria-labelledby="history-heading">
+              <div class="section-heading-row section-heading-row--compact">
+                <div>
+                  <p class="section-kicker">Immutable Commit Ledger</p>
+                  <h2 id="history-heading">Assessment History</h2>
+                </div>
+                <button class="button button--quiet button--sm" type="button" id="refresh-history-button" disabled>Refresh</button>
+              </div>
+              <p class="history-intro">Each item is an immutable SQLite snapshot keyed by commit SHA. Duplicate commits never create duplicate snapshots.</p>
               <ol class="history-list" id="history-list" aria-live="polite">
                 <li class="history-empty">No snapshots received yet.</li>
               </ol>
             </article>
-
-            <article class="panel guidance-panel" aria-labelledby="guidance-heading">
-              <div class="section-heading-row section-heading-row--compact">
-                <div>
-                  <p class="section-kicker">Growth plan</p>
-                  <h2 id="guidance-heading">Evidence gaps and next tasks</h2>
-                </div>
-              </div>
-              <p class="guidance-disclaimer">Recommendations are future work, not achievements already proven by the repository.</p>
-              <div class="guidance-list" id="guidance-list" aria-live="polite">
-                <div class="history-empty">No evidence gaps or recommendations received yet.</div>
-              </div>
-            </article>
-          </section>
-
-          <section class="panel comparison-panel" id="comparison-panel" aria-labelledby="comparison-heading" hidden>
-            <div class="section-heading-row section-heading-row--compact">
-              <div>
-                <p class="section-kicker">Snapshot comparison</p>
-                <h2 id="comparison-heading">Evidence changes</h2>
-              </div>
-              <button class="icon-button" type="button" id="close-comparison-button" aria-label="Close comparison">×</button>
-            </div>
-            <div class="comparison-meta" id="comparison-meta"></div>
-            <div class="comparison-grid" id="comparison-grid"></div>
-          </section>
+          </div>
         </section>
       </main>
 
       <footer class="site-footer">
-        <p>SkillPath AI keeps credentials on the server. The browser receives only assessment data and public repository links returned by the API. · <a href="/docs" target="_blank" rel="noopener noreferrer">Interactive API Docs</a></p>
+        <p>SkillPath AI keeps all API keys and tokens strictly on the server. The browser receives only deterministic evidence citations and public repository links. · <a href="/docs" target="_blank" rel="noopener noreferrer">Interactive API Docs</a></p>
       </footer>
     </div>
 

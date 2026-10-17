@@ -565,3 +565,171 @@ def test_github_webhook_with_signature_verification(tmp_path) -> None:
         assert correct_response.status_code == 200
         assert correct_response.json()["event"] == "ping"
 
+
+def test_git_github_rule_and_enriched_comparison_matrix(tmp_path) -> None:
+    """Verify git_github skill detection, contextualized recommendations, and full requirement_rows in comparison."""
+    initial = _inspection(
+        INITIAL_SHA,
+        "from pathlib import Path\n\n"
+        "def read_project_name() -> str:\n"
+        "    return Path('README.md').stem\n",
+    )
+    updated = _inspection(
+        UPDATED_SHA,
+        "from fastapi import FastAPI\n\n"
+        "app = FastAPI()\n\n"
+        "@app.get('/health')\n"
+        "def health() -> dict[str, str]:\n"
+        "    return {'status': 'ok'}\n",
+    )
+    fake_github = FakeAsyncGitHubClient({INITIAL_SHA: initial, UPDATED_SHA: updated})
+    app = _create_app(_settings(tmp_path), fake_github)
+
+    with TestClient(app) as client:
+        job_res = client.post(
+            "/api/jobs",
+            json={
+                "title": "Software Engineer Intern",
+                "company": "Example Corp",
+                "source_url": "https://jobs.example.org/swe-intern",
+                "description": "Required: Python, FastAPI, automated testing, and version control with Git and GitHub.",
+            },
+        )
+        assert job_res.status_code == 201
+        job = job_res.json()["job"]
+        skill_keys = {s["key"] for s in job["skills"]}
+        assert "git_github" in skill_keys
+
+        # Validate repository metadata endpoint
+        val_res = client.get(f"/api/github/validate?repository_url={REPOSITORY_URL}")
+        assert val_res.status_code == 200
+        assert val_res.json()["valid"] is True
+        assert val_res.json()["repository"]["name"] == "portfolio"
+
+        repo_res = client.post(
+            "/api/repositories",
+            json={"job_id": job["id"], "repository_url": REPOSITORY_URL},
+        )
+        assert repo_res.status_code == 201
+        repo_id = repo_res.json()["repository"]["id"]
+        first_snapshot = repo_res.json()["snapshot"]
+        skills_map = _by_key(first_snapshot["assessment"])
+
+        # Git and GitHub is now demonstrated via version-controlled source evidence
+        assert skills_map["git_github"]["status_code"] == "demonstrated"
+        assert len(skills_map["git_github"]["evidence"]) >= 1
+
+        # Contextualized recommendation references inspected file src/server.py
+        testing_task = skills_map["automated_testing"]["next_evidence_contract"]["task"]
+        assert "src/server.py" in testing_task
+
+        # Advance commit and scan
+        fake_github.current_sha = UPDATED_SHA
+        scan_res = client.post(f"/api/repositories/{repo_id}/scan")
+        assert scan_res.status_code == 200
+        second_snapshot = scan_res.json()["snapshot"]
+
+        comp_res = client.get(f"/api/assessments/{second_snapshot['id']}/compare/{first_snapshot['id']}")
+        assert comp_res.status_code == 200
+        comp = comp_res.json()
+        assert "requirement_rows" in comp
+        assert len(comp["requirement_rows"]) == len(job["skills"])
+        assert any(s["skill_key"] == "fastapi" for s in comp["strengths"])
+        assert any(g["skill_key"] == "automated_testing" for g in comp["top_gaps"])
+
+
+def test_hydrorag_ai_ml_nlp_rag_extraction_and_manual_rescan_refresh(tmp_path) -> None:
+    """Verify multi-skill AI/ML/NLP/Deep Learning extraction and HydroRAG code evidence detection."""
+    hydrorag_source = (
+        "from openai import OpenAI\n"
+        "from langchain_chroma import Chroma\n"
+        "from langchain_openai import OpenAIEmbeddings\n"
+        "from langchain_text_splitters import RecursiveCharacterTextSplitter\n"
+        "from langchain_community.document_loaders import PyPDFLoader\n"
+        "from rank_bm25 import BM25Okapi\n"
+        "\n"
+        "def tokenize(text: str) -> list[str]:\n"
+        "    return text.lower().split()\n"
+        "\n"
+        "class RAGEngine:\n"
+        "    def __init__(self):\n"
+        "        self.openai_client = OpenAI(api_key='test')\n"
+        "        self.embeddings = OpenAIEmbeddings(model='text-embedding-3-small')\n"
+        "        self.chroma = Chroma(persist_directory='chroma_db', embedding_function=self.embeddings)\n"
+        "        self.bm25 = BM25Okapi([[' basil ', ' ph ']])\n"
+        "\n"
+        "    def dense_search(self, query: str):\n"
+        "        return self.chroma.similarity_search_with_relevance_scores(query, k=4)\n"
+        "\n"
+        "    def bm25_search(self, query: str):\n"
+        "        return self.bm25.get_scores(tokenize(query))\n"
+        "\n"
+        "    def generate_answer(self, query: str):\n"
+        "        return self.openai_client.chat.completions.create(model='gpt-4o-mini', messages=[])\n"
+    )
+    inspected = _inspection(INITIAL_SHA, hydrorag_source)
+    fake_github = FakeAsyncGitHubClient({INITIAL_SHA: inspected})
+    app = _create_app(_settings(tmp_path), fake_github)
+
+    with TestClient(app) as client:
+        # 1. Exact truncated Jooble AI/ML snippet from Job #14
+        job_res = client.post(
+            "/api/jobs",
+            json={
+                "title": "AI/ML Engineer",
+                "company": "Warrier AI Solutions Pvt Ltd - Zepcruit",
+                "city": "Pune",
+                "source_url": "https://in.jooble.org/jdp/-8513984833727808877",
+                "description": (
+                    "About the Role We are looking for a motivated AI/ML Engineer with 1-3 year of experience "
+                    "to join our technology team. The ideal candidate should have strong fundamentals in "
+                    "Machine Learning and Deep Learning, along with hands-on knowledge of Natural Language Processing (NLP..."
+                ),
+            },
+        )
+        assert job_res.status_code == 201
+        job = job_res.json()["job"]
+        extracted_keys = {s["key"] for s in job["skills"]}
+        assert "machine_learning" in extracted_keys
+        assert "deep_learning" in extracted_keys
+        assert "nlp_text_processing" in extracted_keys
+
+        # 2. Connect HydroRAG and verify multi-skill evidence
+        repo_res = client.post(
+            "/api/repositories",
+            json={"job_id": job["id"], "repository_url": REPOSITORY_URL},
+        )
+        assert repo_res.status_code == 201
+        repo_id = repo_res.json()["repository"]["id"]
+        snap = repo_res.json()["snapshot"]
+        by_key = _by_key(snap["assessment"])
+        assert by_key["machine_learning"]["status_code"] == "demonstrated"
+        assert by_key["nlp_text_processing"]["status_code"] == "demonstrated"
+        assert by_key["deep_learning"]["status_code"] == "not_demonstrated"
+        assert snap["assessment"]["fit_score"]["value"] == 67
+
+        # 3. Update the job to include RAG, Embeddings, and LLM integration, then manual rescan at same SHA
+        upd_res = client.put(
+            f"/api/jobs/{job['id']}",
+            json={
+                "title": "AI/ML & RAG Engineer",
+                "company": "Warrier AI Solutions",
+                "source_url": "https://in.jooble.org/jdp/-8513984833727808877",
+                "description": (
+                    "Requires Python, Machine Learning, Deep Learning, Natural Language Processing (NLP), "
+                    "Retrieval-Augmented Generation (RAG), vector search with Chroma, and OpenAI LLM integration."
+                ),
+            },
+        )
+        assert upd_res.status_code == 200
+        rescan = client.post(f"/api/repositories/{repo_id}/scan")
+        assert rescan.status_code == 200
+        refreshed = rescan.json()["snapshot"]
+        refreshed_keys = _by_key(refreshed["assessment"])
+        assert refreshed_keys["retrieval_augmented_generation"]["status_code"] == "demonstrated"
+        assert refreshed_keys["embeddings_vector_search"]["status_code"] == "demonstrated"
+        assert refreshed_keys["llm_integration"]["status_code"] == "demonstrated"
+        assert refreshed["assessment"]["fit_score"]["value"] >= 80
+
+
+

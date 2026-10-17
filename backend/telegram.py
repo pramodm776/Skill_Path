@@ -11,6 +11,7 @@ import httpx
 
 from .config import Settings
 from .errors import AppError
+from .skills import compare_assessments
 from .storage import SQLiteStore
 
 
@@ -192,6 +193,74 @@ class TelegramService:
             return {"handled": True, "stopped": deactivated}
         return {"handled": False}
 
+    @staticmethod
+    def _proof_delta_counts(previous_assessment: dict[str, Any], current_assessment: dict[str, Any]) -> dict[str, int]:
+        comparison = compare_assessments(previous_assessment, current_assessment)
+        rows = comparison.get("requirement_rows")
+        if not isinstance(rows, list) or not rows:
+            # Fallback if test fixture supplies minimal assessment dict without full skill_assessments
+            changes = comparison.get("skill_changes", [])
+            return {
+                "newly_demonstrated": sum(
+                    1
+                    for c in changes
+                    if c.get("before_status_code") == "not_demonstrated"
+                    and c.get("after_status_code") == "demonstrated"
+                ),
+                "improved": sum(
+                    1
+                    for c in changes
+                    if (
+                        c.get("before_status_code") == "partially_demonstrated"
+                        and c.get("after_status_code") == "demonstrated"
+                    )
+                    or (
+                        c.get("before_status_code") == "not_demonstrated"
+                        and c.get("after_status_code") == "partially_demonstrated"
+                    )
+                ),
+                "regressed": sum(
+                    1
+                    for c in changes
+                    if (
+                        c.get("before_status_code") == "demonstrated"
+                        and c.get("after_status_code") in {"partially_demonstrated", "not_demonstrated"}
+                    )
+                    or (
+                        c.get("before_status_code") == "partially_demonstrated"
+                        and c.get("after_status_code") == "not_demonstrated"
+                    )
+                ),
+                "unchanged": 0,
+            }
+
+        newly_demonstrated = 0
+        improved = 0
+        regressed = 0
+        unchanged = 0
+        rank = {"not_demonstrated": 0, "partially_demonstrated": 1, "demonstrated": 2}
+        for row in rows:
+            b_code = str(row.get("before_status_code") or "not_demonstrated")
+            a_code = str(row.get("after_status_code") or "not_demonstrated")
+            b_rank = rank.get(b_code, 0)
+            a_rank = rank.get(a_code, 0)
+            added_ev = len(row.get("evidence_added") or [])
+            removed_ev = len(row.get("evidence_removed") or [])
+            if b_code == "not_demonstrated" and a_code == "demonstrated":
+                newly_demonstrated += 1
+            elif a_rank > b_rank:
+                improved += 1
+            elif a_rank < b_rank or (a_rank == b_rank and removed_ev > 0 and added_ev == 0):
+                regressed += 1
+            else:
+                unchanged += 1
+        return {
+            "newly_demonstrated": newly_demonstrated,
+            "improved": improved,
+            "regressed": regressed,
+            "unchanged": unchanged,
+        }
+
     async def notify_reassessment(
         self,
         *,
@@ -199,7 +268,7 @@ class TelegramService:
         snapshot: dict[str, Any],
         previous_sha: str | None,
     ) -> dict[str, Any]:
-        """Send at most one concise alert for an automatic new-SHA snapshot."""
+        """Send at most one concise alert for an automatic new-SHA snapshot using canonical assessment data."""
 
         status = self.status(repository_id)
         if not status.get("available") or status.get("state") != "paired":
@@ -207,42 +276,109 @@ class TelegramService:
         subscription = self.store.telegram_subscription(repository_id)
         if not subscription or not subscription.get("active") or not subscription.get("chat_id"):
             return {"sent": False, "reason": "unpaired"}
+
+        repo_with_job = self.store.get_repository_with_job(repository_id)
+        if not repo_with_job:
+            return {"sent": False, "reason": "repository_not_found"}
+
+        owner = str(repo_with_job.get("owner") or "")
+        name = str(repo_with_job.get("name") or "")
+        branch = str(repo_with_job.get("default_branch") or "main")
+        job = repo_with_job.get("job") if isinstance(repo_with_job.get("job"), dict) else {}
+        job_title = str(job.get("title") or "Selected Role")
+
+        # If multiple repository rows exist for the same GitHub owner/name, only send the Telegram alert
+        # for the canonical latest repository row (or the explicitly paired repository) so old test jobs
+        # do not send conflicting 38% scores before the active 73% job is assessed.
+        if owner and name and hasattr(self.store, "latest_repository_id_for_full_name"):
+            canonical_repo_id = self.store.latest_repository_id_for_full_name(owner, name)
+            if canonical_repo_id is not None and canonical_repo_id != repository_id:
+                canonical_sub = self.store.telegram_subscription(canonical_repo_id)
+                if canonical_sub and canonical_sub.get("active") and canonical_sub.get("chat_id") == subscription.get("chat_id"):
+                    return {"sent": False, "reason": "superseded_by_newer_job_repository"}
+
         snapshot_id = snapshot.get("id")
         if not isinstance(snapshot_id, int):
             return {"sent": False, "reason": "invalid_snapshot"}
+
+        canonical_snapshot = self.store.get_snapshot(snapshot_id) or snapshot
+        assessment = canonical_snapshot.get("assessment") if isinstance(canonical_snapshot.get("assessment"), dict) else {}
+        if not assessment:
+            return {"sent": False, "reason": "invalid_assessment"}
+
+        fit = assessment.get("fit_score") if isinstance(assessment.get("fit_score"), dict) else {}
+        score = fit.get("value") if isinstance(fit, dict) else None
+        summary = assessment.get("summary") if isinstance(assessment.get("summary"), dict) else {}
+        if score is None and not summary:
+            return {"sent": False, "reason": "missing_canonical_score"}
+
         chat_id_str = str(subscription["chat_id"])
-        commit_sha_full = str(snapshot.get("commit_sha", ""))
-        if self._recent_notified_shas.get(chat_id_str) == commit_sha_full and commit_sha_full:
-            return {"sent": False, "reason": "already_notified"}
+        commit_sha_full = str(canonical_snapshot.get("commit_sha", ""))
         if not self.store.claim_telegram_delivery(
             subscription_id=int(subscription["id"]),
             snapshot_id=snapshot_id,
             notification_type="automatic_reassessment",
+            chat_id=chat_id_str,
+            owner=owner or None,
+            name=name or None,
+            commit_sha=commit_sha_full or None,
         ):
             return {"sent": False, "reason": "already_notified"}
 
-        assessment = snapshot.get("assessment") if isinstance(snapshot.get("assessment"), dict) else {}
-        fit = assessment.get("fit_score") if isinstance(assessment, dict) else {}
-        score = fit.get("value") if isinstance(fit, dict) else None
-        summary = assessment.get("summary") if isinstance(assessment, dict) else {}
-        changed_count = snapshot.get("changed_files")
-        changed_count = len(changed_count) if isinstance(changed_count, list) else 0
-        sha = str(snapshot.get("commit_sha", ""))[:12] or "new revision"
+        demo_total = summary.get("demonstrated", 0) if isinstance(summary, dict) else 0
+        part_total = summary.get("partially_demonstrated", 0) if isinstance(summary, dict) else 0
+        miss_total = summary.get("not_demonstrated", 0) if isinstance(summary, dict) else 0
+
+        # Retrieve previous snapshot for authentic Proof Delta calculation
+        prev_snapshot: dict[str, Any] | None = None
+        if previous_sha and hasattr(self.store, "get_snapshot_by_sha"):
+            prev_snapshot = self.store.get_snapshot_by_sha(repository_id, previous_sha)
+        if prev_snapshot is None and hasattr(self.store, "previous_snapshot_for"):
+            prev_snapshot = self.store.previous_snapshot_for(repository_id, snapshot_id)
+
+        sha_short = commit_sha_full[:12] or "new revision"
+        repo_label = f"{owner}/{name}" if owner and name else "repository"
         lines = [
-            "SkillPath AI proof update",
-            f"New commit {sha} was automatically reassessed.",
-            f"Changed files reported by GitHub: {changed_count}.",
+            "SkillPath AI — Assessment Update",
+            "",
+            f"Repository: {repo_label}",
+            f"Branch: {branch}",
+            f"Commit: {sha_short}",
+            f"Job: {job_title}",
+            "",
+            f"Evidence fit: {score}%" if isinstance(score, (int, float)) else "Evidence fit: Not available",
+            f"Demonstrated: {demo_total}",
+            f"Partial: {part_total}",
+            f"Not demonstrated in inspected scope: {miss_total}",
+            "",
+            "Proof Delta vs previous commit",
         ]
-        if isinstance(score, (int, float)):
-            lines.append(f"Evidence fit: {score}% (traceability aid, not a hiring decision).")
-        if isinstance(summary, dict):
-            lines.append(f"Proof Delta: {summary.get('demonstrated', 0)} demonstrated requirement signals at this revision.")
-        if previous_sha:
-            lines.append(f"Compared against {previous_sha[:12]}.")
+
+        if prev_snapshot and isinstance(prev_snapshot.get("assessment"), dict):
+            delta = self._proof_delta_counts(prev_snapshot["assessment"], assessment)
+            lines.extend([
+                f"- Newly demonstrated: {delta['newly_demonstrated']}",
+                f"- Improved: {delta['improved']}",
+                f"- Regressed: {delta['regressed']}",
+                f"- Unchanged: {delta['unchanged']}",
+            ])
+            prev_sha_short = str(prev_snapshot.get("commit_sha") or previous_sha or "")[:12]
+            if prev_sha_short:
+                lines.append("")
+                lines.append(f"Previous commit: {prev_sha_short}")
+        elif previous_sha:
+            lines.append("- Baseline comparison unavailable for previous commit.")
+            lines.append("")
+            lines.append(f"Previous commit: {previous_sha[:12]}")
+        else:
+            lines.append("- Baseline unavailable (no prior snapshot to compare).")
+
         dashboard_url = _safe_dashboard_url(self.settings.public_base_url)
         if dashboard_url:
+            lines.append("")
             lines.append(f"Dashboard: {dashboard_url}")
-        message_id = await self._send_message(str(subscription["chat_id"]), "\n".join(lines))
+
+        message_id = await self._send_message(chat_id_str, "\n".join(lines))
         if message_id is None:
             self.store.finish_telegram_delivery(
                 subscription_id=int(subscription["id"]),

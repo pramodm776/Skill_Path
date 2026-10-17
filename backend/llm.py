@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from typing import Any
 
@@ -22,6 +23,7 @@ class LLMInterpreter:
         self.settings = settings
         self.transport = transport
         self.retry_delay_seconds = retry_delay_seconds
+        self._cache: dict[str, dict[str, Any]] = {}
 
     def _xai_fallback_available(self) -> bool:
         return bool(
@@ -48,15 +50,30 @@ class LLMInterpreter:
         return {
             "mode": "OpenAI interpretation",
             "provider": "OpenAI",
+            "model": self.settings.openai_model,
             "available": True,
             "xai_fallback_available": self._xai_fallback_available(),
         }
 
     @staticmethod
+    def _strip_code_fences(text: str | None) -> str | None:
+        if not text:
+            return None
+        cleaned = text.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip().startswith("```"):
+                lines = lines[:-1]
+            cleaned = "\n".join(lines).strip()
+        return cleaned
+
+    @staticmethod
     def _response_text(payload: dict[str, Any]) -> str | None:
         direct = payload.get("output_text")
-        if isinstance(direct, str):
-            return direct
+        if isinstance(direct, str) and direct.strip():
+            return LLMInterpreter._strip_code_fences(direct)
         output = payload.get("output")
         if not isinstance(output, list):
             return None
@@ -69,31 +86,44 @@ class LLMInterpreter:
                     candidate = content.get("text")
                     if isinstance(candidate, str):
                         parts.append(candidate)
-        return "\n".join(parts) if parts else None
+        return LLMInterpreter._strip_code_fences("\n".join(parts)) if parts else None
 
     @staticmethod
-    def _safe_interpretations(text: str | None, assessment: dict[str, Any]) -> dict[str, str]:
-        if not text or len(text) > 12_000:
-            return {}
+    def _safe_interpretations(text: str | None, assessment: dict[str, Any]) -> tuple[dict[str, str], dict[str, str]]:
+        if not text or len(text) > 16_000:
+            return {}, {}
         try:
             payload = json.loads(text)
         except json.JSONDecodeError:
-            return {}
+            return {}, {}
         if not isinstance(payload, dict):
-            return {}
+            return {}, {}
         allowed = {
             str(item.get("skill_key"))
             for item in assessment.get("skill_assessments", [])
             if isinstance(item, dict)
         }
         interpretations: dict[str, str] = {}
+        next_tasks: dict[str, str] = {}
         for key, value in payload.items():
-            if key not in allowed or not isinstance(value, str):
+            if key not in allowed:
                 continue
-            cleaned = " ".join(value.split())
-            if 1 <= len(cleaned) <= 400:
-                interpretations[key] = cleaned
-        return interpretations
+            if isinstance(value, str):
+                cleaned = " ".join(value.split())
+                if 1 <= len(cleaned) <= 450:
+                    interpretations[key] = cleaned
+            elif isinstance(value, dict):
+                interp = value.get("interpretation") or value.get("summary")
+                if isinstance(interp, str):
+                    cleaned = " ".join(interp.split())
+                    if 1 <= len(cleaned) <= 450:
+                        interpretations[key] = cleaned
+                task = value.get("next_task") or value.get("recommendation")
+                if isinstance(task, str):
+                    cleaned_task = " ".join(task.split())
+                    if 10 <= len(cleaned_task) <= 450:
+                        next_tasks[key] = cleaned_task
+        return interpretations, next_tasks
 
     @staticmethod
     def _compact_context(job: dict[str, Any], assessment: dict[str, Any]) -> dict[str, Any]:
@@ -175,14 +205,22 @@ class LLMInterpreter:
 
     @staticmethod
     def _apply_interpretations(
-        assessment: dict[str, Any], interpretations: dict[str, str]
+        assessment: dict[str, Any],
+        interpretations: dict[str, str],
+        next_tasks: dict[str, str] | None = None,
     ) -> None:
+        next_tasks = next_tasks or {}
         for item in assessment.get("skill_assessments", []):
             if not isinstance(item, dict):
                 continue
-            interpretation = interpretations.get(str(item.get("skill_key")))
+            key = str(item.get("skill_key"))
+            interpretation = interpretations.get(key)
             if interpretation:
                 item["llm_interpretation"] = interpretation
+            task_override = next_tasks.get(key)
+            if task_override and item.get("status_code") != "demonstrated":
+                if isinstance(item.get("next_evidence_contract"), dict):
+                    item["next_evidence_contract"]["llm_suggestion"] = task_override
 
     async def enrich(self, job: dict[str, Any], assessment: dict[str, Any]) -> dict[str, Any]:
         """Never let an LLM outage block a factual, citation-validated assessment."""
@@ -191,21 +229,44 @@ class LLMInterpreter:
         if not initial_status["available"]:
             return initial_status
         context = self._compact_context(job, assessment)
+        cache_key = hashlib.sha256(
+            json.dumps(
+                {"model": self.settings.openai_model, "sha": assessment.get("inspected_commit_sha"), "ctx": context},
+                sort_keys=True,
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        if cache_key in self._cache:
+            cached = self._cache[cache_key]
+            self._apply_interpretations(
+                assessment, cached.get("interpretations", {}), cached.get("next_tasks", {})
+            )
+            meta = dict(cached["meta"])
+            meta["cached"] = True
+            return meta
+
         openai_outcome, openai_payload = await self._call_provider(
             endpoint="https://api.openai.com/v1/responses",
             api_key=str(self.settings.openai_api_key),
             body=self._body(self.settings.openai_model, context),
         )
         if openai_outcome == "success" and openai_payload is not None:
-            interpretations = self._safe_interpretations(self._response_text(openai_payload), assessment)
-            self._apply_interpretations(assessment, interpretations)
-            return {
+            interpretations, next_tasks = self._safe_interpretations(self._response_text(openai_payload), assessment)
+            self._apply_interpretations(assessment, interpretations, next_tasks)
+            usage = openai_payload.get("usage") if isinstance(openai_payload.get("usage"), dict) else {}
+            meta = {
                 "mode": "OpenAI interpretation",
                 "provider": "OpenAI",
+                "model": self.settings.openai_model,
                 "available": True,
+                "cached": False,
                 "sent_to_provider": "Job title/company, requirement excerpts, statuses, and up to two already-validated evidence excerpts per skill. API keys and uninspected files are never sent.",
                 "interpreted_skill_count": len(interpretations),
+                "tokens_used": usage.get("total_tokens") if isinstance(usage, dict) else None,
             }
+            if interpretations:
+                self._cache[cache_key] = {"interpretations": interpretations, "next_tasks": next_tasks, "meta": meta}
+            return meta
         if openai_outcome == "nonretryable":
             return {
                 "mode": "deterministic",
@@ -220,8 +281,8 @@ class LLMInterpreter:
                 body=self._body(str(self.settings.xai_model), context),
             )
             if xai_outcome == "success" and xai_payload is not None:
-                interpretations = self._safe_interpretations(self._response_text(xai_payload), assessment)
-                self._apply_interpretations(assessment, interpretations)
+                interpretations, next_tasks = self._safe_interpretations(self._response_text(xai_payload), assessment)
+                self._apply_interpretations(assessment, interpretations, next_tasks)
                 return {
                     "mode": "xAI interpretation fallback",
                     "provider": "xAI",

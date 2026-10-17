@@ -41,8 +41,8 @@ RULES: tuple[SkillRule, ...] = (
         "SQL and database queries",
         ("sql", "postgresql", "postgres", "mysql", "sqlite", "database queries"),
         (
-            r"\b(?:SELECT|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+TABLE|ALTER\s+TABLE|JOIN)\b",
-            r"\b(?:execute|executemany|query)\s*\(",
+            r"\b(?:SELECT\s+.+\s+FROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+TABLE|ALTER\s+TABLE)\b",
+            r"\b(?:cursor|connection|conn|db|session)\.(?:execute|executemany|executescript)\s*\(",
             r"\b(?:create_engine|sqlite3\.connect|psycopg|mysql\.connector)\b",
         ),
         "Add a parameterized query or migration plus a test that exercises the data path; avoid committing credentials or production data.",
@@ -163,17 +163,42 @@ RULES: tuple[SkillRule, ...] = (
     SkillRule(
         "machine_learning",
         "Machine learning",
-        ("machine learning", "ml", "scikit-learn", "tensorflow", "pytorch"),
-        (r"\b(?:sklearn|tensorflow|torch|keras|\.fit\s*\(|predict\s*\()",),
-        "Add a reproducible training or inference boundary with a small evaluation or test and document the data limitations.",
+        ("machine learning", "ml", "scikit-learn", "sklearn", "xgboost", "lightgbm", "random forest", "model training"),
+        (
+            r"\b(?:sklearn|xgboost|lightgbm|catboost|scipy\.stats|\.fit\s*\(|predict\s*\(|train_test_split)\b",
+            r"\b(?:BM25Okapi|TfidfVectorizer|CountVectorizer|KMeans|LogisticRegression|RandomForest)\b",
+        ),
+        "Add a reproducible training, ranking, or model-inference module with an evaluation test and document the dataset boundaries.",
         (".py", ".ipynb"),
+    ),
+    SkillRule(
+        "deep_learning",
+        "Deep learning and neural networks",
+        ("deep learning", "neural networks", "neural network", "pytorch", "tensorflow", "keras", "transformers", "cnn", "rnn", "lstm"),
+        (
+            r"\b(?:torch|tensorflow|keras|nn\.Module|AutoModel|AutoTokenizer|pipeline\s*\(|conv2d|lstm)\b",
+            r"\b(?:backward\s*\(|optimizer\.step\s*\(|model\.eval\s*\(|load_state_dict)\b",
+        ),
+        "Add a PyTorch, TensorFlow, or Hugging Face Transformers model inference/training module and a reproducible evaluation check.",
+        (".py", ".ipynb"),
+    ),
+    SkillRule(
+        "nlp_text_processing",
+        "Natural language processing (NLP)",
+        ("natural language processing", "nlp", "text processing", "text mining", "tokenization", "information retrieval", "bm25", "semantic search", "text chunking"),
+        (
+            r"\b(?:RecursiveCharacterTextSplitter|TokenTextSplitter|CharacterTextSplitter|BM25Okapi|nltk|spacy|AutoTokenizer|tiktoken)\b",
+            r"\b(?:def\s+tokenize\s*\(|split_documents\s*\(|get_scores\s*\(|similarity_search)\b",
+        ),
+        "Add a text tokenization, chunking, lexical/semantic retrieval, or NLP pipeline module and verify its output on sample text.",
+        (".py", ".ipynb", ".js", ".ts"),
     ),
     SkillRule(
         "retrieval_augmented_generation",
         "Retrieval-augmented generation (RAG)",
-        ("retrieval augmented generation", "retrieval-augmented generation", "rag"),
+        ("retrieval augmented generation", "retrieval-augmented generation", "rag", "hybrid search", "reciprocal rank fusion"),
         (
-            r"\b(?:as_retriever|similarity_search(?:_with_score)?|get_relevant_documents|retrieve\s*\()\b",
+            r"\b(?:as_retriever|similarity_search(?:_with_score|_with_relevance_scores)?|get_relevant_documents|retrieve\s*\(|hybrid_search|dense_search|bm25_search)\b",
             r"\b(?:Chroma|FAISS|Pinecone|Qdrant|Weaviate|VectorStore|vectorstore)\b",
         ),
         "Add a retrieval call and a vector-store integration in executable source, plus a focused test that checks the retrieved context is passed into the answer boundary.",
@@ -182,18 +207,52 @@ RULES: tuple[SkillRule, ...] = (
     SkillRule(
         "embeddings_vector_search",
         "Embeddings and vector search",
-        ("embeddings", "embedding", "vector search", "vector database", "vector store", "chroma", "faiss", "pinecone", "qdrant"),
-        (r"\b(?:OpenAIEmbeddings|HuggingFaceEmbeddings|embed_query|embed_documents|Chroma|FAISS|Pinecone|Qdrant|Weaviate|VectorStore)\b",),
+        ("embeddings", "embedding", "vector search", "vector database", "vector store", "chroma", "chromadb", "faiss", "pinecone", "qdrant"),
+        (
+            r"\b(?:OpenAIEmbeddings|HuggingFaceEmbeddings|SentenceTransformer|embed_query|embed_documents|text-embedding-3|Chroma|FAISS|Pinecone|Qdrant|Weaviate|VectorStore)\b",
+        ),
         "Add an explicit embedding or vector-store call with a small retrieval test; document only the sample data and boundaries that the repository actually uses.",
         (".py", ".js", ".mjs", ".cjs", ".ts", ".tsx"),
     ),
     SkillRule(
         "llm_integration",
         "LLM integration",
-        ("llm", "large language model", "large language models", "openai api", "generative ai", "grok"),
-        (r"\b(?:OpenAI|ChatOpenAI|AzureOpenAI|Anthropic|Grok|client\.(?:responses|chat\.completions))\b",),
+        ("llm", "llms", "large language model", "large language models", "openai api", "openai", "generative ai", "genai", "prompt engineering", "grok", "langchain"),
+        (
+            r"\b(?:OpenAI|ChatOpenAI|AzureOpenAI|Anthropic|Grok|client\.(?:responses|chat\.completions)|openai_client\.chat\.completions)\b",
+        ),
         "Add a narrow LLM request boundary with validated inputs, a safe fallback, and a test that proves the model output cannot fabricate evidence or credentials.",
         (".py", ".js", ".mjs", ".cjs", ".ts", ".tsx"),
+    ),
+    SkillRule(
+        "data_engineering_pipelines",
+        "Data ingestion and processing pipelines",
+        ("data processing", "data pipeline", "data pipelines", "data ingestion", "etl", "pandas", "numpy", "document ingestion", "data analysis"),
+        (
+            r"\b(?:PyPDFLoader|DirectoryLoader|CSVLoader|pd\.read_|np\.array|DataFrame|pickle\.dump|pickle\.load|split_documents)\b",
+        ),
+        "Add a structured data ingestion, parsing, or transformation pipeline module with input validation and a unit test.",
+        (".py", ".ipynb", ".sql"),
+    ),
+    SkillRule(
+        "microservices_architecture",
+        "Microservices and modular architecture",
+        ("microservices", "microservice", "modular architecture", "system design", "distributed systems", "scalable backend"),
+        (
+            r"\b(?:APIRouter|Blueprint|FastAPI|class\s+\w+Engine|class\s+\w+Service|class\s+\w+Client|class\s+\w+Store)\b",
+        ),
+        "Factor core business logic into a dedicated service or engine class separated from the UI/transport layer and cover its interface with tests.",
+        (".py", ".js", ".ts", ".java", ".go", ".cs"),
+    ),
+    SkillRule(
+        "interactive_web_ui",
+        "Interactive AI / web interface (Gradio / Streamlit)",
+        ("gradio", "streamlit", "interactive ui", "chatbot ui", "web interface"),
+        (
+            r"\b(?:gr\.Blocks|gr\.ChatInterface|gr\.Interface|st\.title|st\.chat_input|st\.sidebar)\b",
+        ),
+        "Add a clean interactive UI module that connects user inputs to the backend service cleanly.",
+        (".py", ".js", ".ts"),
     ),
     SkillRule(
         "java",
@@ -215,8 +274,12 @@ RULES: tuple[SkillRule, ...] = (
         "git_github",
         "Git and GitHub",
         ("git", "github", "version control"),
-        (),
-        "Make meaningful, reviewable commits and include a pull-request-ready change with tests or documentation; repository access alone is not treated as proof of Git skill.",
+        (
+            r"^\s*(?:name|on|jobs|steps|uses|runs-on)\s*:",
+            r"^\s*(?:__pycache__|node_modules|\.env|\.venv|dist|build|\*\.pyc|\*\.log)\b",
+        ),
+        "Add a .gitignore or GitHub workflow file and commit clean, modular source files across reviewable revisions.",
+        (".yml", ".yaml", ".gitignore", ".gitattributes"),
     ),
 )
 
@@ -240,13 +303,23 @@ def _segments(description: str) -> Iterable[tuple[int, str]]:
                 yield line_number, cleaned
 
 
-def extract_job_skills(description: str) -> list[dict[str, Any]]:
-    """Normalize only directly mentioned skill phrases; unknown text is deliberately not guessed."""
+def is_truncated_snippet(description: str) -> bool:
+    stripped = description.strip()
+    if not stripped:
+        return True
+    if len(stripped) < 340 and (stripped.endswith("...") or stripped.endswith("…") or stripped.startswith("...")):
+        return True
+    return len(stripped) < 160
 
+
+def extract_job_skills(description: str, *, title: str = "") -> list[dict[str, Any]]:
+    """Normalize directly mentioned skill phrases across the title and description."""
+
+    combined = f"{title.strip()}\n{description}" if title.strip() else description
     normalized: list[dict[str, Any]] = []
     for rule in RULES:
         matches: list[tuple[int, str, str, bool]] = []
-        for line_number, segment in _segments(description):
+        for line_number, segment in _segments(combined):
             for alias in sorted(rule.aliases, key=len, reverse=True):
                 match = _alias_pattern(alias).search(segment)
                 if match:
@@ -288,6 +361,8 @@ def _is_relevant_file(rule: SkillRule, path: str) -> bool:
         return filename == "dockerfile" or "docker" in filename or "compose" in filename
     if rule.key == "ci_cd":
         return lower_path.startswith(".github/workflows/") or "pipeline" in filename or "ci" in filename
+    if rule.key == "git_github":
+        return lower_path.startswith(".github/") or filename in {".gitignore", ".gitattributes"}
     if rule.extensions:
         return _extension(path) in rule.extensions
     return True
@@ -373,6 +448,22 @@ def _scan_rule(
                     results.append(_evidence(file, lines, line_number, kind, strength, changed_paths))
                 break
     # Multiple evidence points are useful, but an assessment should stay readable.
+    if rule.key == "git_github" and not results:
+        for file in files:
+            path = file.get("path")
+            content = file.get("content")
+            if not isinstance(path, str) or not isinstance(content, str) or bool(file.get("context_only")):
+                continue
+            lines = content.splitlines()
+            for line_number, line in enumerate(lines, start=1):
+                if _is_comment_or_blank(line):
+                    continue
+                results.append(
+                    _evidence(file, lines, line_number, "version-controlled source module", 0.85, changed_paths)
+                )
+                break
+            if len(results) >= 2:
+                break
     results.sort(key=lambda item: (-float(item["strength"]), not bool(item["changed_in_commit"]), item["path"], item["start_line"]))
     return results[:5], special_counts
 
@@ -477,6 +568,31 @@ def _claim_boundary(status_code: str, skill_name: str) -> str:
     )
 
 
+def _contextual_recommendation(rule: SkillRule, files: list[dict[str, Any]], requirement_excerpt: str) -> str:
+    source_paths = [
+        str(f.get("path"))
+        for f in files
+        if isinstance(f.get("path"), str) and not bool(f.get("context_only"))
+    ]
+    if not source_paths:
+        return rule.recommendation
+    matching_ext_paths = [
+        p for p in source_paths if not rule.extensions or _extension(p) in rule.extensions
+    ]
+    anchor_file = matching_ext_paths[0] if matching_ext_paths else source_paths[0]
+    if rule.key == "automated_testing":
+        return f"Create a test file alongside `{anchor_file}` (e.g. `tests/test_{anchor_file.rsplit('/', 1)[-1].split('.')[0]}.py`) with at least one test function and assertion."
+    if rule.key == "sql_databases":
+        return f"Add a parameterized SQL query or database operation in `{anchor_file}` (or a dedicated storage module) and cover it with a test."
+    if rule.key == "api_development" or rule.key == "fastapi" or rule.key == "flask":
+        return f"Add a documented route handler in `{anchor_file}` with request validation and an endpoint test."
+    if rule.key == "docker":
+        return f"Add a `Dockerfile` at the repository root with a `FROM` base image and `CMD`/`ENTRYPOINT` that runs `{anchor_file}` without embedding secrets."
+    if rule.key == "ci_cd":
+        return f"Add `.github/workflows/ci.yml` with `on:` triggers and a `jobs:` test step that validates `{anchor_file}` on push."
+    return f"{rule.recommendation} (Target context: `{anchor_file}`)."
+
+
 def build_assessment(
     job: dict[str, Any],
     inspection_result: dict[str, Any],
@@ -508,6 +624,9 @@ def build_assessment(
         raw_evidence, counts = _scan_rule(rule, files, changed_paths)
         evidence = [item for item in raw_evidence if validate_evidence(item, files)]
         status_code, status, confidence = _status_for(rule, evidence, counts)
+        contextual_task = _contextual_recommendation(
+            rule, files, str(requirement.get("source_excerpt", ""))
+        )
         skill_assessments.append(
             {
                 "skill_key": rule.key,
@@ -530,7 +649,7 @@ def build_assessment(
                 "claim_boundary": _claim_boundary(status_code, rule.name),
                 "next_evidence_contract": {
                     "type": "future_evidence_contract",
-                    "task": rule.recommendation,
+                    "task": contextual_task,
                     "purpose": "This is a future task intended to generate stronger repository evidence. It is not an existing achievement.",
                 }
                 if status_code != "demonstrated"
@@ -553,11 +672,18 @@ def build_assessment(
         if item["status_code"] == "demonstrated":
             continue
         rule = RULE_BY_KEY[item["skill_key"]]
+        task_text = (
+            item["next_evidence_contract"]["task"]
+            if isinstance(item.get("next_evidence_contract"), dict) and item["next_evidence_contract"].get("task")
+            else rule.recommendation
+        )
         recommendations.append(
             {
                 "type": "future_recommendation",
                 "skill": item["skill"],
-                "action": rule.recommendation,
+                "skill_key": item["skill_key"],
+                "status_code": item["status_code"],
+                "action": task_text,
                 "reason": "This is a suggested next step to generate stronger evidence. It is not an existing achievement.",
             }
         )
@@ -606,6 +732,9 @@ def compare_assessments(previous: dict[str, Any], current: dict[str, Any]) -> di
         if isinstance(item, dict) and item.get("skill_key")
     }
     changes: list[dict[str, Any]] = []
+    requirement_rows: list[dict[str, Any]] = []
+    strengths: list[dict[str, Any]] = []
+    top_gaps: list[dict[str, Any]] = []
     for key in sorted(set(previous_items) | set(current_items)):
         before = previous_items.get(key)
         after = current_items.get(key)
@@ -623,18 +752,54 @@ def compare_assessments(previous: dict[str, Any], current: dict[str, Any]) -> di
         added = [after_evidence[item] for item in after_evidence.keys() - before_evidence.keys()]
         removed = [before_evidence[item] for item in before_evidence.keys() - after_evidence.keys()]
         status_changed = before.get("status_code") != after.get("status_code")
+        row_entry = {
+            "skill_key": key,
+            "skill": after.get("skill") or before.get("skill"),
+            "requirement_type": after.get("requirement_type", "required"),
+            "before_status": before.get("status"),
+            "before_status_code": before.get("status_code"),
+            "after_status": after.get("status"),
+            "after_status_code": after.get("status_code"),
+            "status_changed": status_changed,
+            "before_evidence": list(before.get("evidence", [])),
+            "after_evidence": list(after.get("evidence", [])),
+            "evidence_added": added,
+            "evidence_removed": removed,
+            "claim_boundary": after.get("claim_boundary") or before.get("claim_boundary"),
+            "next_evidence_contract": after.get("next_evidence_contract"),
+        }
+        requirement_rows.append(row_entry)
+        if after.get("status_code") == "demonstrated":
+            strengths.append({
+                "skill_key": key,
+                "skill": row_entry["skill"],
+                "file_count": len({e.get("path") for e in row_entry["after_evidence"] if isinstance(e, dict) and e.get("path")}),
+                "explanation": after.get("explanation", ""),
+            })
+        else:
+            top_gaps.append({
+                "skill_key": key,
+                "skill": row_entry["skill"],
+                "status_code": after.get("status_code"),
+                "status": after.get("status"),
+                "task": (after.get("next_evidence_contract") or {}).get("task")
+                if isinstance(after.get("next_evidence_contract"), dict)
+                else "",
+            })
         if status_changed or added or removed:
             changes.append(
                 {
                     "skill_key": key,
-                    "skill": after.get("skill") or before.get("skill"),
+                    "skill": row_entry["skill"],
                     "before_status": before.get("status"),
+                    "before_status_code": before.get("status_code"),
                     "after_status": after.get("status"),
+                    "after_status_code": after.get("status_code"),
                     "status_changed": status_changed,
                     "evidence_added": added,
                     "evidence_removed": removed,
-                    "claim_boundary": after.get("claim_boundary") or before.get("claim_boundary"),
-                    "next_evidence_contract": after.get("next_evidence_contract"),
+                    "claim_boundary": row_entry["claim_boundary"],
+                    "next_evidence_contract": row_entry["next_evidence_contract"],
                 }
             )
     current_score = current.get("fit_score", {}).get("value") if isinstance(current.get("fit_score"), dict) else None
@@ -646,6 +811,11 @@ def compare_assessments(previous: dict[str, Any], current: dict[str, Any]) -> di
         if isinstance(current_score, (int, float)) and isinstance(previous_score, (int, float))
         else None,
         "skill_changes": changes,
+        "requirement_rows": requirement_rows,
+        "strengths": strengths,
+        "top_gaps": top_gaps,
+        "previous_summary": previous.get("summary", {}),
+        "current_summary": current.get("summary", {}),
         "message": "No tracked skill status or validated evidence changed between these snapshots."
         if not changes
         else "Assessment differences are computed from stored, validated evidence excerpts.",

@@ -375,3 +375,238 @@ def test_create_job_with_title_and_city_only_auto_synthesizes_benchmark(tmp_path
         assert "api_development" in skill_keys
 
 
+def test_telegram_canonical_score_proof_delta_and_sibling_deduplication(tmp_path) -> None:
+    """Verify all 12 Telegram accuracy, Proof Delta, sibling repo deduplication, and retry requirements."""
+    deliveries: list[dict[str, Any]] = []
+    should_fail = False
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if should_fail:
+            return httpx.Response(503, json={"ok": False})
+        deliveries.append(json.loads(request.content.decode("utf-8")))
+        return httpx.Response(200, json={"ok": True, "result": {"message_id": 100 + len(deliveries)}})
+
+    settings = _settings(
+        tmp_path,
+        telegram_bot_token="telegram-server-secret",
+        telegram_webhook_secret="webhook-server-secret",
+        telegram_notifications_enabled=True,
+    )
+    store = SQLiteStore(settings.database_path)
+    service = TelegramService(settings, store, transport=httpx.MockTransport(handler))
+
+    # 1. Create an older job (38% fit, 3 demonstrated out of 8) and a newer active AI/ML job (73% fit, 8 demonstrated out of 11)
+    old_job = store.create_job(
+        title="Old Python Backend Role",
+        company="Legacy Co",
+        source_url="https://jobs.example.test/old",
+        description="Requires Python, FastAPI, Flask, SQL, automated testing, APIs, microservices, Git.",
+        skills=extract_job_skills("Requires Python, FastAPI, Flask, SQL, automated testing, APIs, microservices, Git."),
+    )
+    new_job = store.create_job(
+        title="AI/ML Engineer",
+        company="Warrier AI Solutions",
+        source_url="https://jobs.example.test/aiml",
+        description="Requires Python, ML, Deep Learning, NLP, RAG, embeddings, LLM, data pipelines, APIs, testing, Git.",
+        skills=extract_job_skills(
+            "Requires Python, ML, Deep Learning, NLP, RAG, embeddings, LLM, data pipelines, APIs, testing, Git."
+        ),
+    )
+
+    old_repo = store.create_repository(
+        job_id=int(old_job["id"]),
+        repository_url="https://github.com/vedantsable56/HydroRAG",
+        owner="vedantsable56",
+        name="HydroRAG",
+        default_branch="main",
+    )
+    new_repo = store.create_repository(
+        job_id=int(new_job["id"]),
+        repository_url="https://github.com/vedantsable56/HydroRAG",
+        owner="vedantsable56",
+        name="HydroRAG",
+        default_branch="main",
+    )
+
+    # Pair Telegram on the older repo first, then verify sibling inheritance and canonical priority for new_repo
+    pairing = service.create_pairing(int(old_repo["id"]))
+    asyncio.run(
+        service.handle_webhook_update({"message": {"text": pairing["start_command"], "chat": {"id": 77777}}})
+    )
+    assert len(deliveries) == 1  # Pairing confirmation message
+
+    # Build baseline 73% assessment (8 demonstrated, 3 not demonstrated) at commit 261191c3ae82
+    sha_prev = "261191c3ae8265fa8ad9c6ef4397bbccfcada610"
+    sha_curr = "4239b6ec8d69a1b0f811ea492edce3e0bfc694f7"
+    hydrorag_code = (
+        "from openai import OpenAI\n"
+        "from langchain_chroma import Chroma\n"
+        "from langchain_openai import OpenAIEmbeddings\n"
+        "from langchain_text_splitters import RecursiveCharacterTextSplitter\n"
+        "from langchain_community.document_loaders import PyPDFLoader\n"
+        "from rank_bm25 import BM25Okapi\n"
+        "def tokenize(text: str):\n"
+        "    return text.split()\n"
+        "class RAGEngine:\n"
+        "    def __init__(self):\n"
+        "        self.openai_client = OpenAI(api_key='x')\n"
+        "        self.embeddings = OpenAIEmbeddings(model='text-embedding-3-small')\n"
+        "        self.chroma = Chroma(persist_directory='db', embedding_function=self.embeddings)\n"
+        "        self.bm25 = BM25Okapi([['a']])\n"
+        "    def dense_search(self, q):\n"
+        "        return self.chroma.similarity_search_with_relevance_scores(q, k=4)\n"
+        "    def generate_answer(self, q):\n"
+        "        return self.openai_client.chat.completions.create(model='gpt-4o-mini', messages=[])\n"
+    )
+    insp_prev = make_fake_inspection(
+        sha=sha_prev,
+        source=hydrorag_code,
+        path="rag_engine.py",
+        repo_url="https://github.com/vedantsable56/HydroRAG",
+        owner="vedantsable56",
+        name="HydroRAG",
+    )
+    insp_curr = make_fake_inspection(
+        sha=sha_curr,
+        source=hydrorag_code,
+        path="rag_engine.py",
+        repo_url="https://github.com/vedantsable56/HydroRAG",
+        owner="vedantsable56",
+        name="HydroRAG",
+    )
+
+    old_assess_curr = build_assessment(old_job, insp_curr)
+    assert old_assess_curr["fit_score"]["value"] == 38
+    old_snap_curr, _ = store.create_snapshot(
+        repository_id=int(old_repo["id"]),
+        commit_sha=sha_curr,
+        commit_url=f"https://github.com/vedantsable56/HydroRAG/commit/{sha_curr}",
+        trigger="automatic_reassessment",
+        assessment=old_assess_curr,
+        inspection={},
+        changed_files=[],
+        llm={},
+    )
+
+    new_assess_prev = build_assessment(new_job, insp_prev)
+    new_assess_curr = build_assessment(new_job, insp_curr)
+    assert new_assess_prev["fit_score"]["value"] == 73
+    assert new_assess_curr["fit_score"]["value"] == 73
+
+    store.create_snapshot(
+        repository_id=int(new_repo["id"]),
+        commit_sha=sha_prev,
+        commit_url=f"https://github.com/vedantsable56/HydroRAG/commit/{sha_prev}",
+        trigger="initial_scan",
+        assessment=new_assess_prev,
+        inspection={},
+        changed_files=[],
+        llm={},
+    )
+    new_snap_curr, _ = store.create_snapshot(
+        repository_id=int(new_repo["id"]),
+        commit_sha=sha_curr,
+        commit_url=f"https://github.com/vedantsable56/HydroRAG/commit/{sha_curr}",
+        trigger="automatic_reassessment",
+        assessment=new_assess_curr,
+        inspection={},
+        changed_files=[{"path": "README.md", "status": "modified"}],
+        llm={},
+    )
+
+    # 2. Old repo notification is suppressed because newer active job repo exists for the same GitHub owner/name
+    suppressed = asyncio.run(
+        service.notify_reassessment(
+            repository_id=int(old_repo["id"]), snapshot=old_snap_curr, previous_sha=sha_prev
+        )
+    )
+    assert suppressed["sent"] is False
+    assert suppressed["reason"] == "superseded_by_newer_job_repository"
+
+    # 3. Test failed Telegram send can be retried without marking delivery as sent prematurely
+    should_fail = True
+    failed_attempt = asyncio.run(
+        service.notify_reassessment(
+            repository_id=int(new_repo["id"]), snapshot=new_snap_curr, previous_sha=sha_prev
+        )
+    )
+    assert failed_attempt == {"sent": False, "reason": "delivery_failed"}
+    assert len(deliveries) == 1  # No message delivered yet
+
+    # 4. Retry succeeds and sends canonical 73% score and zero Proof Delta changes
+    should_fail = False
+    sent_attempt = asyncio.run(
+        service.notify_reassessment(
+            repository_id=int(new_repo["id"]), snapshot=new_snap_curr, previous_sha=sha_prev
+        )
+    )
+    assert sent_attempt == {"sent": True}
+    assert len(deliveries) == 2
+    msg = deliveries[-1]["text"]
+    assert "SkillPath AI — Assessment Update" in msg
+    assert "Repository: vedantsable56/HydroRAG" in msg
+    assert "Job: AI/ML Engineer" in msg
+    assert "Evidence fit: 73%" in msg
+    assert "38%" not in msg
+    assert "Demonstrated: 8" in msg
+    assert "Not demonstrated in inspected scope: 3" in msg
+    assert "- Newly demonstrated: 0" in msg
+    assert "- Improved: 0" in msg
+    assert "- Regressed: 0" in msg
+    assert "- Unchanged: 11" in msg
+    assert "Previous commit: 261191c3ae82" in msg
+
+    # 5. Concurrent or duplicate calls for the same commit are suppressed
+    dup_attempt = asyncio.run(
+        service.notify_reassessment(
+            repository_id=int(new_repo["id"]), snapshot=new_snap_curr, previous_sha=sha_prev
+        )
+    )
+    assert dup_attempt["sent"] is False
+    assert dup_attempt["reason"] == "already_notified"
+    assert len(deliveries) == 2
+
+    # 6. A new commit with a genuine new demonstration (automated_testing) and regression is reported accurately
+    sha_third = "999999999999a1b0f811ea492edce3e0bfc694f7"
+    insp_third = make_fake_inspection(
+        sha=sha_third,
+        source=hydrorag_code + "\ndef test_rag():\n    assert 1 == 1\n",
+        path="rag_engine.py",
+        repo_url="https://github.com/vedantsable56/HydroRAG",
+        owner="vedantsable56",
+        name="HydroRAG",
+    )
+    assess_third = build_assessment(new_job, insp_third)
+    assert assess_third["fit_score"]["value"] == 82
+    snap_third, _ = store.create_snapshot(
+        repository_id=int(new_repo["id"]),
+        commit_sha=sha_third,
+        commit_url=f"https://github.com/vedantsable56/HydroRAG/commit/{sha_third}",
+        trigger="automatic_reassessment",
+        assessment=assess_third,
+        inspection={},
+        changed_files=[{"path": "rag_engine.py", "status": "modified"}],
+        llm={},
+    )
+    third_attempt = asyncio.run(
+        service.notify_reassessment(
+            repository_id=int(new_repo["id"]), snapshot=snap_third, previous_sha=sha_curr
+        )
+    )
+    assert third_attempt == {"sent": True}
+    assert len(deliveries) == 3
+    msg_third = deliveries[-1]["text"]
+    assert "Evidence fit: 82%" in msg_third
+    assert "Demonstrated: 9" in msg_third
+    assert "- Newly demonstrated: 1" in msg_third
+    assert "- Unchanged: 10" in msg_third
+
+    # 7. Invalid/failed assessment never generates a misleading success notification
+    bad_snap = {"id": 9999, "commit_sha": "abcd" * 10, "assessment": {}}
+    bad_attempt = asyncio.run(
+        service.notify_reassessment(repository_id=int(new_repo["id"]), snapshot=bad_snap, previous_sha=None)
+    )
+    assert bad_attempt["sent"] is False
+
+
+

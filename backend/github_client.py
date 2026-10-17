@@ -16,6 +16,7 @@ from .errors import GitHubError
 
 ALLOWED_EXTENSIONS = {
     ".py",
+    ".ipynb",
     ".js",
     ".mjs",
     ".cjs",
@@ -61,6 +62,8 @@ ALLOWED_FILENAMES = {
     "procfile",
     "gemfile",
     "rakefile",
+    ".gitignore",
+    ".gitattributes",
 }
 SKIP_DIRECTORIES = {
     ".git",
@@ -397,9 +400,33 @@ class GitHubClient:
 
             def priority(entry: dict[str, Any]) -> tuple[int, str]:
                 path = str(entry.get("path", "")).lower()
-                if any(marker in path for marker in ("test", "spec", "api", "route", "service", "main", "app")):
+                filename = path.rsplit("/", 1)[-1]
+                if filename in CONTEXT_ONLY_FILENAMES or path.startswith("docs/") or path.endswith((".md", ".txt")):
+                    return (4, path)
+                if filename in {".gitignore", ".gitattributes"}:
+                    return (3, path)
+                if any(
+                    marker in path
+                    for marker in (
+                        "test",
+                        "spec",
+                        "api",
+                        "route",
+                        "service",
+                        "main",
+                        "app",
+                        "engine",
+                        "model",
+                        "train",
+                        "infer",
+                        "eval",
+                        "rag",
+                        "ingest",
+                        "pipeline",
+                    )
+                ):
                     return (0, path)
-                if path.endswith((".py", ".js", ".ts", ".tsx", ".java", ".go", ".sql")):
+                if path.endswith((".py", ".ipynb", ".js", ".ts", ".tsx", ".java", ".go", ".sql", ".cpp", ".cc", ".rs")):
                     return (1, path)
                 return (2, path)
 
@@ -482,16 +509,22 @@ class GitHubClient:
 
         commit_payload = commit.get("commit") if isinstance(commit, dict) else {}
         commit_date = commit_payload.get("author", {}).get("date") if isinstance(commit_payload, dict) else None
+        commit_message = commit_payload.get("message") if isinstance(commit_payload, dict) else None
         return {
             "owner": owner,
             "name": repository,
             "repository_url": canonical_url,
             "default_branch": metadata.get("default_branch"),
+            "description": metadata.get("description") if isinstance(metadata.get("description"), str) else "",
+            "language": metadata.get("language") if isinstance(metadata.get("language"), str) else "",
+            "stars": int(metadata.get("stargazers_count", 0)) if isinstance(metadata.get("stargazers_count"), int) else 0,
+            "visibility": "private" if metadata.get("private") else "public",
             "commit_sha": sha,
             "commit_url": commit.get("html_url")
             if isinstance(commit.get("html_url"), str)
             else f"{canonical_url}/commit/{sha}",
             "commit_date": commit_date if isinstance(commit_date, str) else None,
+            "commit_message": str(commit_message).splitlines()[0][:180] if isinstance(commit_message, str) and commit_message else None,
             "files": [file.as_dict() for file in files],
             "inspection": {
                 "inspected_at": utc_now(),
@@ -557,6 +590,39 @@ class GitHubClient:
                 item["previous_path"] = file["previous_filename"]
             changes.append(item)
         return changes
+
+    async def validate_repository_metadata(self, repository_url: str) -> dict[str, Any]:
+        owner, repository, canonical_url = parse_github_repository_url(repository_url)
+        timeout = httpx.Timeout(self.settings.github_timeout_seconds)
+        async with httpx.AsyncClient(
+            base_url=self.settings.github_api_url,
+            headers=self._headers(),
+            timeout=timeout,
+            follow_redirects=False,
+        ) as client:
+            metadata, commit, sha = await self._metadata_and_commit(client, owner, repository)
+        resolved_owner = metadata.get("owner", {}).get("login") if isinstance(metadata.get("owner"), dict) else owner
+        resolved_name = metadata.get("name") if isinstance(metadata.get("name"), str) else repository
+        commit_payload = commit.get("commit") if isinstance(commit, dict) else {}
+        commit_date = commit_payload.get("author", {}).get("date") if isinstance(commit_payload, dict) else None
+        commit_message = commit_payload.get("message") if isinstance(commit_payload, dict) else None
+        return {
+            "owner": resolved_owner,
+            "name": resolved_name,
+            "full_name": f"{resolved_owner}/{resolved_name}",
+            "repository_url": metadata.get("html_url") if isinstance(metadata.get("html_url"), str) else canonical_url,
+            "default_branch": metadata.get("default_branch") or "main",
+            "description": metadata.get("description") or "",
+            "language": metadata.get("language") or "",
+            "stars": int(metadata.get("stargazers_count", 0)) if isinstance(metadata.get("stargazers_count"), int) else 0,
+            "visibility": "private" if metadata.get("private") else "public",
+            "commit_sha": sha,
+            "commit_url": commit.get("html_url")
+            if isinstance(commit.get("html_url"), str)
+            else f"{canonical_url}/commit/{sha}",
+            "commit_date": commit_date if isinstance(commit_date, str) else None,
+            "commit_message": str(commit_message).splitlines()[0][:180] if isinstance(commit_message, str) and commit_message else None,
+        }
 
     async def list_user_repositories(self, username: str) -> list[dict[str, Any]]:
         clean_user = username.strip().lstrip("@")

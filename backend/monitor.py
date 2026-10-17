@@ -77,6 +77,9 @@ class MonitorService:
                 }
             )
         safe["files"] = files
+        for meta_key in ("description", "language", "stars", "visibility", "commit_date", "commit_message"):
+            if meta_key in inspection_result:
+                safe[meta_key] = inspection_result.get(meta_key)
         return safe
 
     def _lock_for(self, repository_id: int) -> asyncio.Lock:
@@ -92,6 +95,7 @@ class MonitorService:
         trigger: str,
         changed_files: list[dict[str, Any]] | None = None,
         previous_sha: str | None = None,
+        refresh_existing: bool = False,
     ) -> tuple[dict[str, Any], bool]:
         repository = self.store.get_repository_with_job(repository_id)
         if not repository or not repository.get("job"):
@@ -112,6 +116,7 @@ class MonitorService:
             inspection=self._safe_inspection(inspection_result),
             changed_files=changed_files or [],
             llm=llm,
+            refresh_existing=refresh_existing,
         )
         # An initial/manual scan is also a successful repository check, so both timestamps
         # are meaningful from the first dashboard render.

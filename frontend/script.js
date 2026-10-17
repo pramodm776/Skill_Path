@@ -17,6 +17,16 @@
     serverTelegram: null,
     serverJobSearch: null,
     jobSearchResults: [],
+    activeView: "setup",
+    roleCategory: "all",
+    skillFilterStatus: "all",
+    skillFilterSearch: "",
+    selectedSkillKey: null,
+    selectedEvidenceIndex: 0,
+    validatedRepoMeta: null,
+    lastComparison: null,
+    compareTableSearch: "",
+    compareTableFilter: "all",
     refreshTimer: null,
     refreshBusy: false,
   };
@@ -25,6 +35,93 @@
   const elements = {
     backendOfflineBanner: byId("backend-offline-banner"),
     connectionStatus: byId("connection-status"),
+    brandHomeLink: byId("brand-home-link"),
+    navTabSetup: byId("nav-tab-setup"),
+    navTabResult: byId("nav-tab-result"),
+    navTabCompare: byId("nav-tab-compare"),
+    navResultBadge: byId("nav-result-badge"),
+    navCompareBadge: byId("nav-compare-badge"),
+    viewSetup: byId("view-setup"),
+    viewResult: byId("view-result"),
+    viewCompare: byId("view-compare"),
+    stepperStep1: byId("stepper-step-1"),
+    stepperStep2: byId("stepper-step-2"),
+    stepperStep3: byId("stepper-step-3"),
+    roleCategoryPills: byId("role-category-pills"),
+    jobCardsList: byId("job-cards-list"),
+    toggleCustomJobButton: byId("toggle-custom-job-button"),
+    customJobDrawer: byId("custom-job-drawer"),
+    closeCustomJobButton: byId("close-custom-job-button"),
+    newJobModeButton: byId("new-job-mode-button"),
+    fetchJobUrlButton: byId("fetch-job-url-button"),
+    updateJobButton: byId("update-job-button"),
+    setupJobBadge: byId("setup-job-badge"),
+    setupJobTitle: byId("setup-job-title"),
+    setupJobCompany: byId("setup-job-company"),
+    setupJobTags: byId("setup-job-tags"),
+    setupReqCount: byId("setup-req-count"),
+    setupKeyReqsList: byId("setup-key-reqs-list"),
+    setupRepoName: byId("setup-repo-name"),
+    setupRepoDesc: byId("setup-repo-desc"),
+    validateRepoButton: byId("validate-repo-button"),
+    reviewSelectedJobTitle: byId("review-selected-job-title"),
+    reviewSelectedJobMeta: byId("review-selected-job-meta"),
+    reviewSelectedRepoName: byId("review-selected-repo-name"),
+    reviewSelectedRepoMeta: byId("review-selected-repo-meta"),
+    resultLastAnalyzedTime: byId("result-last-analyzed-time"),
+    resultLastAnalyzedCommit: byId("result-last-analyzed-commit"),
+    reanalyzeButton: byId("reanalyze-button"),
+    fitGaugeCircle: byId("fit-gauge-circle"),
+    kpiCardDemonstrated: byId("kpi-card-demonstrated"),
+    kpiCardPartial: byId("kpi-card-partial"),
+    kpiCardMissing: byId("kpi-card-missing"),
+    kpiCardTotal: byId("kpi-card-total"),
+    kpiDemonstratedCount: byId("kpi-demonstrated-count"),
+    kpiPartialCount: byId("kpi-partial-count"),
+    kpiMissingCount: byId("kpi-missing-count"),
+    kpiTotalCount: byId("kpi-total-count"),
+    skillFilterSearch: byId("skill-filter-search"),
+    skillFilterStatus: byId("skill-filter-status"),
+    inspectorSkillTitle: byId("inspector-skill-title"),
+    inspectorSkillStatus: byId("inspector-skill-status"),
+    inspectorFileTabs: byId("inspector-file-tabs"),
+    inspectorFilePath: byId("inspector-file-path"),
+    inspectorLineRange: byId("inspector-line-range"),
+    inspectorCodeExcerpt: byId("inspector-code-excerpt"),
+    inspectorWhyText: byId("inspector-why-text"),
+    inspectorClaimBoundary: byId("inspector-claim-boundary"),
+    inspectorLimitsList: byId("inspector-limits-list"),
+    toggleMonitorButton: byId("toggle-monitor-button"),
+    inspectedFilesSummary: byId("inspected-files-summary"),
+    llmModeBadge: byId("llm-mode-badge"),
+    toggleScopeDrawerButton: byId("toggle-scope-drawer-button"),
+    scopeFilesDrawer: byId("scope-files-drawer"),
+    scopeDrawerSummaryTitle: byId("scope-drawer-summary-title"),
+    scopeInspectedList: byId("scope-inspected-list"),
+    scopeSkippedList: byId("scope-skipped-list"),
+    compareRepoName: byId("compare-repo-name"),
+    compareRepoBadges: byId("compare-repo-badges"),
+    compareDeltaBadge: byId("compare-delta-badge"),
+    compareJobTitle: byId("compare-job-title"),
+    compareJobCompany: byId("compare-job-company"),
+    compareSnapshotSelect: byId("compare-snapshot-select"),
+    compareBeforeSub: byId("compare-before-sub"),
+    compareBeforeScore: byId("compare-before-score"),
+    compareBeforeBars: byId("compare-before-bars"),
+    compareAfterSub: byId("compare-after-sub"),
+    compareAfterScore: byId("compare-after-score"),
+    compareAfterBars: byId("compare-after-bars"),
+    distSegDemo: byId("dist-seg-demo"),
+    distSegPart: byId("dist-seg-part"),
+    distSegMiss: byId("dist-seg-miss"),
+    distLabelDemo: byId("dist-label-demo"),
+    distLabelPart: byId("dist-label-part"),
+    distLabelMiss: byId("dist-label-miss"),
+    compareTopGaps: byId("compare-top-gaps"),
+    compareStrengths: byId("compare-strengths"),
+    compareTableSearch: byId("compare-table-search"),
+    compareTableFilter: byId("compare-table-filter"),
+    compareTableBody: byId("compare-table-body"),
     savedJobsSelect: byId("saved-jobs-select"),
     deleteJobButton: byId("delete-job-button"),
     jobForm: byId("job-form"),
@@ -245,6 +342,210 @@
     elements.contextLinks.append(jobNode, repoLink);
   }
 
+  function switchView(viewName) {
+    const valid = ["setup", "result", "compare"].includes(viewName) ? viewName : "setup";
+    state.activeView = valid;
+    const views = [
+      ["setup", elements.viewSetup, elements.navTabSetup],
+      ["result", elements.viewResult, elements.navTabResult],
+      ["compare", elements.viewCompare, elements.navTabCompare],
+    ];
+    views.forEach(([key, sec, tab]) => {
+      if (sec) sec.classList.toggle("is-active", key === valid);
+      if (tab) tab.classList.toggle("is-active", key === valid);
+    });
+    if (valid === "compare" && state.history.length >= 2 && !state.lastComparison) {
+      showComparison(state.history[0].id, state.history[1].id, { stayInView: true });
+    } else if (valid === "compare") {
+      renderCompareDashboard();
+    }
+  }
+
+  function matchesCategory(item, cat) {
+    if (!cat || cat === "all") return true;
+    const hay = `${item.title || ""} ${item.company || ""} ${item.description || ""} ${(item.skills || []).map((s) => s.name || s.skill || "").join(" ")}`.toLowerCase();
+    if (cat === "internship") return hay.includes("intern") || (item.employment_type || "").toLowerCase().includes("intern");
+    if (cat === "backend") return /backend|fastapi|flask|sql|api|python|server|java|c\+\+/.test(hay);
+    if (cat === "frontend") return /frontend|react|html|css|ui|javascript|typescript|full-stack|full stack/.test(hay);
+    if (cat === "ai") return /ai|ml|machine learning|rag|llm|generative|embeddings/.test(hay);
+    if (cat === "data") return /data|sql|analytics|pipeline|ml|embeddings/.test(hay);
+    if (cat === "software") return /software|engineer|developer|systems|full-stack|backend/.test(hay);
+    return true;
+  }
+
+  function renderSetupWorkspace() {
+    // 1. Update Stepper states
+    const hasJob = Boolean(state.job?.id);
+    const hasRepo = Boolean(state.repository?.id || state.validatedRepoMeta);
+    if (elements.stepperStep1) {
+      elements.stepperStep1.classList.toggle("is-done", hasJob);
+      elements.stepperStep1.classList.toggle("is-active", !hasJob);
+    }
+    if (elements.stepperStep2) {
+      elements.stepperStep2.classList.toggle("is-done", hasRepo);
+      elements.stepperStep2.classList.toggle("is-active", hasJob && !hasRepo);
+    }
+    if (elements.stepperStep3) {
+      elements.stepperStep3.classList.toggle("is-done", Boolean(state.snapshot));
+      elements.stepperStep3.classList.toggle("is-active", hasJob && hasRepo);
+    }
+
+    // 2. Render Job Cards List (Saved jobs + live search results)
+    if (elements.jobCardsList) {
+      clear(elements.jobCardsList);
+      const searchQ = (elements.jobSearchQuery?.value || "").trim().toLowerCase();
+      const combined = [];
+      (state.savedJobs || []).forEach((j) => {
+        combined.push({ kind: "saved", data: j });
+      });
+      (state.jobSearchResults || []).forEach((r, idx) => {
+        combined.push({ kind: "live", data: r, liveIndex: idx });
+      });
+
+      const filtered = combined.filter(({ data }) => {
+        if (!matchesCategory(data, state.roleCategory)) return false;
+        if (!searchQ) return true;
+        const textBlob = `${data.title || ""} ${data.company || ""} ${data.description || ""}`.toLowerCase();
+        return textBlob.includes(searchQ);
+      });
+
+      if (!filtered.length) {
+        elements.jobCardsList.append(
+          make("div", "history-empty", "No matching roles in this category. Try 'All Roles', click 'Search Live', or add a custom role.")
+        );
+      } else {
+        filtered.forEach(({ kind, data, liveIndex }) => {
+          const isSelected = kind === "saved" && state.job?.id && String(state.job.id) === String(data.id);
+          const card = make("article", `job-card${isSelected ? " is-selected" : ""}`);
+          const left = document.createElement("div");
+          const top = make("div", "job-card__top");
+          top.append(make("h3", "job-card__title", text(data.title, "Untitled Role")));
+          const comp = data.company && data.company !== "Company not specified" ? data.company : "Benchmark Role";
+          top.append(make("span", "job-card__company", comp));
+          left.append(top);
+
+          const meta = make("div", "job-card__meta");
+          if (data.location || data.city) meta.append(make("span", "", `📍 ${data.location || data.city}`));
+          const isLocal = !data.source_url || String(data.source_url).includes("skillpath.local");
+          meta.append(make("span", "", kind === "live" ? `⚡ Live (${data.provider || "Search"})` : isLocal ? "📋 Role Benchmark" : "🔗 Verified URL"));
+          left.append(meta);
+
+          if (data.description) {
+            left.append(make("p", "job-card__desc", data.description));
+          }
+
+          const tagsWrap = make("div", "job-card__tags");
+          const skillsArr = Array.isArray(data.skills) ? data.skills : [];
+          skillsArr.slice(0, 6).forEach((s) => {
+            tagsWrap.append(make("span", "skill-tag-chip", text(s.name || s.skill, "Skill")));
+          });
+          if (skillsArr.length > 6) {
+            tagsWrap.append(make("span", "skill-tag-chip", `+${skillsArr.length - 6} more`));
+          }
+          left.append(tagsWrap);
+          card.append(left);
+
+          const rightBtn = make(
+            "button",
+            `button ${isSelected ? "button--primary" : "button--quiet"} button--sm`,
+            isSelected ? "Selected ✓" : kind === "live" ? "Use Posting" : "Select Role"
+          );
+          rightBtn.type = "button";
+          card.addEventListener("click", async () => {
+            if (kind === "live") {
+              await useJobSearchResult(liveIndex, { autoSave: true });
+            } else if (elements.savedJobsSelect) {
+              elements.savedJobsSelect.value = String(data.id);
+              await onSavedJobSelectChange();
+            }
+          });
+          card.append(rightBtn);
+          elements.jobCardsList.append(card);
+        });
+      }
+    }
+
+    // 3. Selected Job Details Panel & Key Requirements
+    if (elements.setupJobTitle) {
+      if (state.job) {
+        setTone(elements.setupJobBadge, "ready", "Selected");
+        elements.setupJobTitle.textContent = text(state.job.title, "Selected Role");
+        const compText = state.job.company && state.job.company !== "Company not specified" ? state.job.company : "SkillPath Benchmark";
+        elements.setupJobCompany.textContent = compText;
+        if (elements.setupJobTags) {
+          clear(elements.setupJobTags);
+          const isSynthetic = !state.job.source_url || state.job.source_url.includes("skillpath.local");
+          elements.setupJobTags.append(
+            make("span", "meta-pill", isSynthetic ? "Synthetic Benchmark" : "Public Job URL")
+          );
+          if (!isSynthetic && state.job.source_url) {
+            elements.setupJobTags.append(externalLink("Source Link ↗", state.job.source_url, "meta-pill"));
+          }
+        }
+        const reqs = Array.isArray(state.job.skills) ? state.job.skills : [];
+        if (elements.setupReqCount) elements.setupReqCount.textContent = String(reqs.length);
+        if (elements.setupKeyReqsList) {
+          clear(elements.setupKeyReqsList);
+          if (!reqs.length) {
+            elements.setupKeyReqsList.append(make("li", "reqs-empty", "No supported skills extracted yet."));
+          } else {
+            reqs.forEach((r) => {
+              const li = document.createElement("li");
+              li.append(make("span", "", text(r.name || r.skill, "Requirement")));
+              li.append(make("span", "meta-pill", text(r.requirement_type, "required")));
+              elements.setupKeyReqsList.append(li);
+            });
+          }
+        }
+      } else {
+        setTone(elements.setupJobBadge, "", "Awaiting selection");
+        elements.setupJobTitle.textContent = "Select a Job Opportunity";
+        elements.setupJobCompany.textContent = "Choose a role from the cards or paste a real job posting.";
+        if (elements.setupJobTags) clear(elements.setupJobTags);
+        if (elements.setupReqCount) elements.setupReqCount.textContent = "0";
+        if (elements.setupKeyReqsList) {
+          clear(elements.setupKeyReqsList);
+          elements.setupKeyReqsList.append(make("li", "reqs-empty", "Select a job card to preview extracted requirements."));
+        }
+      }
+    }
+
+    // 4. Review & Start Analysis Bar + Update Job button visibility
+    if (elements.updateJobButton) {
+      elements.updateJobButton.hidden = !state.job?.id;
+    }
+    if (elements.reviewSelectedJobTitle) {
+      elements.reviewSelectedJobTitle.textContent = state.job ? state.job.title : "Auto-select latest / benchmark role";
+      elements.reviewSelectedJobMeta.textContent = state.job
+        ? `${state.job.company || "Company"} · ${(state.job.skills || []).length} requirements`
+        : "Or select a specific job card above";
+    }
+    const repoMeta = state.repository || state.validatedRepoMeta;
+    if (elements.reviewSelectedRepoName) {
+      elements.reviewSelectedRepoName.textContent = repoMeta
+        ? `${repoMeta.owner}/${repoMeta.name}`
+        : elements.repositoryUrl?.value.trim() || "No repository linked";
+      elements.reviewSelectedRepoMeta.textContent = repoMeta
+        ? `Branch: ${repoMeta.default_branch || "main"} · ${shortSha(repoMeta.latest_known_sha || repoMeta.commit_sha)}`
+        : "Enter a GitHub URL above";
+    }
+    if (elements.setupRepoName) {
+      if (repoMeta) {
+        elements.setupRepoName.textContent = `${repoMeta.owner}/${repoMeta.name}`;
+        const insp = state.snapshot?.inspection || {};
+        const descParts = [
+          repoMeta.visibility || insp.visibility || "public",
+          repoMeta.language || insp.language || "",
+          typeof (repoMeta.stars ?? insp.stars) === "number" ? `★ ${repoMeta.stars ?? insp.stars}` : "",
+        ].filter(Boolean);
+        elements.setupRepoDesc.textContent = descParts.join(" · ") || "Validated GitHub repository";
+      } else {
+        elements.setupRepoName.textContent = "No repository validated";
+        elements.setupRepoDesc.textContent = "Enter a GitHub URL and click 'Validate Repository' or 'Start Analysis'.";
+      }
+    }
+  }
+
   function renderRepositoryFacts() {
     clear(elements.repositoryFacts);
     if (!state.repository) {
@@ -271,10 +572,37 @@
   function renderFit() {
     const assessment = state.snapshot?.assessment;
     const score = assessment?.fit_score;
+    const summary = assessment?.summary || {};
+    const circumference = 314.16;
+
+    if (elements.reanalyzeButton) {
+      elements.reanalyzeButton.disabled = !state.repository?.id;
+    }
+    if (elements.resultLastAnalyzedTime) {
+      elements.resultLastAnalyzedTime.textContent = state.snapshot?.assessed_at
+        ? formatDate(state.snapshot.assessed_at)
+        : "Not yet analyzed";
+    }
+    if (elements.resultLastAnalyzedCommit) {
+      elements.resultLastAnalyzedCommit.textContent = state.snapshot?.commit_sha
+        ? `Commit: ${shortSha(state.snapshot.commit_sha)}`
+        : "Commit: —";
+    }
+
     if (!assessment) {
       elements.fitScore.textContent = "—";
-      if (state.job?.skills?.length) {
-        elements.fitTitle.textContent = `${state.job.skills.length} requirements established`;
+      if (elements.fitGaugeCircle) {
+        elements.fitGaugeCircle.style.strokeDashoffset = String(circumference);
+      }
+      if (elements.navResultBadge) elements.navResultBadge.hidden = true;
+      const reqCount = state.job?.skills?.length || 0;
+      if (elements.kpiDemonstratedCount) elements.kpiDemonstratedCount.textContent = "0";
+      if (elements.kpiPartialCount) elements.kpiPartialCount.textContent = "0";
+      if (elements.kpiMissingCount) elements.kpiMissingCount.textContent = "0";
+      if (elements.kpiTotalCount) elements.kpiTotalCount.textContent = String(reqCount);
+
+      if (reqCount) {
+        elements.fitTitle.textContent = `${reqCount} requirements established`;
         elements.fitDescription.textContent = `Job benchmark ready. Connect or assess a repository to inspect code evidence and calculate your fit score.`;
         elements.fitFormula.textContent = "Score will calculate automatically as soon as repository code is inspected.";
         setTone(elements.assessmentState, "working", "Awaiting repository code");
@@ -286,19 +614,132 @@
       }
       return;
     }
-    elements.fitScore.textContent = Number.isFinite(score?.value) ? `${score.value}%` : "—";
-    const summary = assessment.summary || {};
-    elements.fitTitle.textContent = Number.isFinite(score?.value) ? "Traceable evidence fit" : "No supported score";
-    elements.fitDescription.textContent = `${summary.demonstrated || 0} demonstrated, ${summary.partially_demonstrated || 0} partial, and ${summary.not_demonstrated || 0} not demonstrated in this inspected scope.`;
+
+    const numericScore = Number.isFinite(score?.value) ? score.value : null;
+    elements.fitScore.textContent = numericScore !== null ? `${numericScore}%` : "—";
+    if (elements.fitGaugeCircle) {
+      const pct = numericScore !== null ? Math.max(0, Math.min(100, numericScore)) : 0;
+      elements.fitGaugeCircle.style.strokeDashoffset = String(circumference * (1 - pct / 100));
+    }
+    if (elements.navResultBadge) {
+      elements.navResultBadge.hidden = numericScore === null;
+      elements.navResultBadge.textContent = numericScore !== null ? `${numericScore}%` : "—";
+    }
+    const demoCount = summary.demonstrated || 0;
+    const partCount = summary.partially_demonstrated || 0;
+    const missCount = summary.not_demonstrated || 0;
+    const totalCount = summary.all_supported_skills ?? (demoCount + partCount + missCount);
+    if (elements.kpiDemonstratedCount) elements.kpiDemonstratedCount.textContent = String(demoCount);
+    if (elements.kpiPartialCount) elements.kpiPartialCount.textContent = String(partCount);
+    if (elements.kpiMissingCount) elements.kpiMissingCount.textContent = String(missCount);
+    if (elements.kpiTotalCount) elements.kpiTotalCount.textContent = String(totalCount);
+
+    elements.fitTitle.textContent = numericScore !== null ? "Traceable evidence fit" : "No supported score";
+    elements.fitDescription.textContent = `${demoCount} demonstrated, ${partCount} partial, and ${missCount} not demonstrated in this inspected scope.`;
     elements.fitFormula.textContent = score?.formula || "The backend did not return a score calculation.";
     setTone(elements.assessmentState, "ready", "Evidence assessed");
   }
 
-  function renderSkillCard(item) {
+  function renderEvidenceInspector(item) {
+    if (!elements.inspectorSkillTitle) return;
+    if (!item) {
+      elements.inspectorSkillTitle.textContent = "Select a skill card";
+      elements.inspectorSkillStatus.className = "status-chip status-chip--unknown";
+      elements.inspectorSkillStatus.textContent = "Awaiting selection";
+      if (elements.inspectorFileTabs) clear(elements.inspectorFileTabs);
+      if (elements.inspectorFilePath) elements.inspectorFilePath.textContent = "No file selected";
+      if (elements.inspectorLineRange) elements.inspectorLineRange.textContent = "L—";
+      if (elements.inspectorCodeExcerpt) {
+        elements.inspectorCodeExcerpt.textContent =
+          "Click any skill card on the left ('View Evidence') to inspect the exact repository file, 1-indexed line numbers, and source code excerpt.";
+      }
+      if (elements.inspectorWhyText) {
+        elements.inspectorWhyText.textContent =
+          "Every demonstrated or partial signal is verified against actual inspected repository lines. Comments and docstrings are ignored.";
+      }
+      if (elements.inspectorClaimBoundary) elements.inspectorClaimBoundary.textContent = "";
+      if (elements.inspectorLimitsList) clear(elements.inspectorLimitsList);
+      return;
+    }
+
     const sc = statusClass(item.status_code, item.status);
-    const card = make("article", `skill-card skill-card--${sc}`);
+    elements.inspectorSkillTitle.textContent = text(item.skill, "Skill");
+    elements.inspectorSkillStatus.className = `status-chip status-chip--${sc}`;
+    elements.inspectorSkillStatus.textContent = text(item.status, "Unreported");
+
+    const evidence = Array.isArray(item.evidence) ? item.evidence : [];
+    if (elements.inspectorFileTabs) {
+      clear(elements.inspectorFileTabs);
+      evidence.forEach((ev, idx) => {
+        const tab = make(
+          "button",
+          `inspector-file-tab${idx === state.selectedEvidenceIndex ? " is-active" : ""}`,
+          `${ev.path || "file"}:${ev.start_line || 1}`
+        );
+        tab.type = "button";
+        tab.addEventListener("click", () => {
+          state.selectedEvidenceIndex = idx;
+          renderEvidenceInspector(item);
+        });
+        elements.inspectorFileTabs.append(tab);
+      });
+    }
+
+    const activeEv = evidence[state.selectedEvidenceIndex] || evidence[0] || null;
+    if (activeEv) {
+      if (elements.inspectorFilePath) {
+        clear(elements.inspectorFilePath);
+        const linkOrSpan = activeEv.url
+          ? externalLink(`📄 ${activeEv.path}`, activeEv.url, "evidence-file")
+          : make("span", "evidence-file", `📄 ${activeEv.path}`);
+        elements.inspectorFilePath.replaceWith(linkOrSpan);
+        linkOrSpan.id = "inspector-file-path";
+        elements.inspectorFilePath = linkOrSpan;
+      }
+      if (elements.inspectorLineRange) {
+        elements.inspectorLineRange.textContent = `L${text(activeEv.start_line, "?")}-${text(activeEv.end_line, "?")}${activeEv.kind ? ` · ${activeEv.kind}` : ""}`;
+      }
+      if (elements.inspectorCodeExcerpt) {
+        elements.inspectorCodeExcerpt.textContent = text(activeEv.excerpt, "No code excerpt returned.");
+      }
+    } else {
+      if (elements.inspectorFilePath) {
+        elements.inspectorFilePath.textContent = "0 validated files in inspected scope";
+      }
+      if (elements.inspectorLineRange) {
+        elements.inspectorLineRange.textContent = "Scope Notice";
+      }
+      if (elements.inspectorCodeExcerpt) {
+        const nextTask = item.next_evidence_contract?.task
+          ? `\n\nSuggested Next Proof Task:\n→ ${item.next_evidence_contract.task}`
+          : "";
+        elements.inspectorCodeExcerpt.textContent = `No validated source code excerpt for ${item.skill} was found in the inspected files at this commit.${nextTask}`;
+      }
+    }
+
+    if (elements.inspectorWhyText) {
+      const llmNote = item.llm_interpretation ? ` AI summary: ${item.llm_interpretation}` : "";
+      elements.inspectorWhyText.textContent = `${item.explanation || ""}${llmNote}`;
+    }
+    if (elements.inspectorClaimBoundary) {
+      elements.inspectorClaimBoundary.textContent = item.claim_boundary || "";
+    }
+    if (elements.inspectorLimitsList) {
+      clear(elements.inspectorLimitsList);
+      (Array.isArray(item.limitations) ? item.limitations : []).forEach((lim) => {
+        elements.inspectorLimitsList.append(make("li", "", lim));
+      });
+    }
+  }
+
+  function renderSkillCard(item) {
+    const skillName = item.skill || item.name || "Unnamed requirement";
+    const skillKey = item.skill_key || item.key || skillName;
+    const sc = statusClass(item.status_code, item.status);
+    const isSelected = state.selectedSkillKey === skillKey;
+    const card = make("article", `skill-card skill-card--${sc}${isSelected ? " is-selected" : ""}`);
     const header = make("div", "skill-card-header");
-    header.append(make("h3", "", text(item.skill, "Unnamed requirement")));
+    header.append(make("h3", "", text(skillName, "Unnamed requirement")));
     const icon = sc === "demonstrated" ? "✓ " : sc === "partial" ? "◐ " : sc === "awaiting" ? "⏳ " : "○ ";
     header.append(make("span", `status-chip status-chip--${sc}`, `${icon}${text(item.status, "Unreported")}`));
     card.append(header);
@@ -309,115 +750,104 @@
     const requirement = item.job_requirement;
     if (requirement?.source_excerpt) {
       const targetPill = make("div", "skill-pill skill-pill--target");
-      targetPill.append(make("strong", "", "🎯 Target requirement: "));
+      targetPill.append(make("strong", "", "Target: "));
       targetPill.append(document.createTextNode(requirement.source_excerpt));
       reqBox.append(targetPill);
     }
     if (item.llm_interpretation) {
       const insightPill = make("div", "skill-pill skill-pill--insight");
-      insightPill.append(make("strong", "", "💡 AI interpretation: "));
+      insightPill.append(make("strong", "", "AI Insight: "));
       insightPill.append(document.createTextNode(item.llm_interpretation));
       reqBox.append(insightPill);
     }
     card.append(reqBox);
 
-    const meta = make("div", "skill-meta");
-    meta.append(make("span", "", `Type: ${text(item.requirement_type, "required")}`));
-    meta.append(make("span", "", `Confidence: ${text(item.confidence, "not reported")}`));
-    if (item.changed_evidence?.length) {
-      meta.append(make("span", "skill-meta--changed", `⚡ ${item.changed_evidence.length} changed in latest commit`));
-    }
-    card.append(meta);
-
     const evidence = Array.isArray(item.evidence) ? item.evidence : [];
-    if (!evidence.length) {
-      if (item.next_evidence_contract?.task) {
-        const nextTask = make("div", "skill-next-task");
-        nextTask.append(make("span", "next-task-badge", "⚡ Suggested Next Proof Task:"));
-        nextTask.append(make("p", "", item.next_evidence_contract.task));
-        card.append(nextTask);
-      } else {
-        card.append(make("p", "evidence-empty", "No validated repository code evidence found in the inspected scope."));
-      }
-      return card;
-    }
+    const uniqueFiles = new Set(evidence.map((e) => e.path).filter(Boolean));
+    const footer = make("div", "skill-card-footer");
+    const fileLabel = uniqueFiles.size
+      ? `📄 ${uniqueFiles.size} file${uniqueFiles.size === 1 ? "" : "s"}${item.changed_evidence?.length ? " · ⚡ modified" : ""}`
+      : item.status_code === "awaiting"
+      ? "⏳ Pending scan"
+      : "0 files in scope";
+    footer.append(make("span", "skill-file-count", fileLabel));
+    const viewBtn = make("button", "view-evidence-btn", "View Evidence →");
+    viewBtn.type = "button";
+    footer.append(viewBtn);
+    card.append(footer);
 
-    const list = make("ul", "evidence-list");
-    const maxInitial = 2;
-    evidence.forEach((entry, idx) => {
-      const isExtra = idx >= maxInitial;
-      const evidenceItem = make("li", `evidence-item${isExtra ? " evidence-item--extra" : ""}`);
-      if (isExtra) evidenceItem.hidden = true;
-
-      const evidenceHeader = make("div", "evidence-head");
-      const pathNode = entry.url
-        ? externalLink(`📄 ${text(entry.path, "file")}`, entry.url, "evidence-file")
-        : make("span", "evidence-file", `📄 ${text(entry.path, "file")}`);
-      evidenceHeader.append(pathNode);
-
-      const rightMeta = make("div", "evidence-head-right");
-      rightMeta.append(make("span", "evidence-line", `L${text(entry.start_line, "?")}-${text(entry.end_line, "?")}`));
-      if (entry.changed_in_commit) {
-        rightMeta.append(make("span", "evidence-badge-changed", "Modified"));
-      }
-      evidenceHeader.append(rightMeta);
-      evidenceItem.append(evidenceHeader);
-
-      evidenceItem.append(make("pre", "code-excerpt", text(entry.excerpt, "No excerpt returned.")));
-      list.append(evidenceItem);
+    card.addEventListener("click", () => {
+      state.selectedSkillKey = skillKey;
+      state.selectedEvidenceIndex = 0;
+      document.querySelectorAll(".skill-card").forEach((el) => el.classList.remove("is-selected"));
+      card.classList.add("is-selected");
+      renderEvidenceInspector({ ...item, skill: skillName, skill_key: skillKey });
     });
-    card.append(list);
-
-    if (evidence.length > maxInitial) {
-      const extraCount = evidence.length - maxInitial;
-      const toggleButton = make("button", "evidence-expand-button", `+ Show ${extraCount} more evidence excerpt${extraCount === 1 ? "" : "s"}`);
-      toggleButton.type = "button";
-      toggleButton.addEventListener("click", () => {
-        const isExpanded = toggleButton.dataset.expanded === "true";
-        list.querySelectorAll(".evidence-item--extra").forEach((el) => {
-          el.hidden = isExpanded;
-        });
-        toggleButton.dataset.expanded = isExpanded ? "false" : "true";
-        toggleButton.textContent = isExpanded ? `+ Show ${extraCount} more evidence excerpt${extraCount === 1 ? "" : "s"}` : "- Hide additional excerpts";
-      });
-      card.append(toggleButton);
-    }
 
     return card;
   }
 
   function renderSkills() {
     clear(elements.skillsGrid);
-    const items = state.snapshot?.assessment?.skill_assessments;
-    if (Array.isArray(items) && items.length) {
-      items.forEach((item) => elements.skillsGrid.append(renderSkillCard(item)));
+    const rawItems = state.snapshot?.assessment?.skill_assessments;
+    const filterStatus = state.skillFilterStatus || "all";
+    const filterQuery = (state.skillFilterSearch || "").trim().toLowerCase();
+
+    if (Array.isArray(rawItems) && rawItems.length) {
+      const filtered = rawItems.filter((item) => {
+        if (filterStatus !== "all" && item.status_code !== filterStatus) return false;
+        if (!filterQuery) return true;
+        const hay = `${item.skill || ""} ${item.explanation || ""} ${item.job_requirement?.source_excerpt || ""}`.toLowerCase();
+        return hay.includes(filterQuery);
+      });
+
+      if (!state.selectedSkillKey || !rawItems.some((i) => i.skill_key === state.selectedSkillKey)) {
+        const firstWithEv = rawItems.find((i) => i.evidence?.length) || rawItems[0];
+        state.selectedSkillKey = firstWithEv?.skill_key || null;
+        state.selectedEvidenceIndex = 0;
+      }
+
+      if (!filtered.length) {
+        elements.skillsGrid.append(make("div", "history-empty", "No skills match the active status or search filter."));
+      } else {
+        filtered.forEach((item) => elements.skillsGrid.append(renderSkillCard(item)));
+      }
+      const selectedObj = rawItems.find((i) => i.skill_key === state.selectedSkillKey) || rawItems[0];
+      renderEvidenceInspector(selectedObj);
+
       const limits = state.snapshot?.assessment?.inspection_limits || {};
-      elements.skillsNote.textContent = `${text(limits.inspected_file_count, "0")} files inspected; excerpts and paths are validated against that inspected content.`;
+      elements.skillsNote.textContent = `${text(limits.inspected_file_count, "0")} files inspected (${text(limits.skipped_file_count, "0")} skipped); every citation is verified against inspected content.`;
+      if (elements.inspectedFilesSummary) {
+        elements.inspectedFilesSummary.textContent = `${text(limits.inspected_file_count, "0")} files inspected · max 20 files`;
+      }
       return;
     }
+
     const jobSkills = state.job?.skills;
     if (Array.isArray(jobSkills) && jobSkills.length) {
-      jobSkills.forEach((s) => {
-        const item = {
-          skill: s.skill,
-          status: "awaiting evidence",
-          status_code: "awaiting",
-          requirement_type: s.requirement_type || "required",
-          confidence: "pending",
-          explanation: `Extracted requirement: "${s.source_excerpt || s.matched_phrase}". Connect repository to inspect AST evidence.`,
-          job_requirement: s,
-          evidence: [],
-        };
-        elements.skillsGrid.append(renderSkillCard(item));
-      });
+      const mapped = jobSkills.map((s) => ({
+        skill_key: s.key || s.name,
+        skill: s.name || s.skill || "Requirement",
+        status: "awaiting evidence",
+        status_code: "awaiting",
+        requirement_type: s.requirement_type || "required",
+        confidence: "pending",
+        explanation: `Extracted requirement: "${s.source_excerpt || s.matched_phrase}". Connect repository to inspect AST evidence.`,
+        job_requirement: s,
+        evidence: [],
+      }));
+      mapped.forEach((item) => elements.skillsGrid.append(renderSkillCard(item)));
+      renderEvidenceInspector(mapped[0]);
       elements.skillsNote.textContent = `${jobSkills.length} job requirements established. Connect a GitHub repository to evaluate evidence and calculate score.`;
       return;
     }
+
+    renderEvidenceInspector(null);
     const empty = make("div", "empty-state empty-state--wide");
     empty.append(make("span", "empty-state-icon", "⌘"));
     const copy = document.createElement("div");
     copy.append(make("h3", "", "No supported requirements assessed"));
-    copy.append(make("p", "", "Save a job title or paste requirements above to extract benchmark skills."));
+    copy.append(make("p", "", "Select a job card or save requirements in Setup to extract benchmark skills."));
     empty.append(copy);
     elements.skillsGrid.append(empty);
     elements.skillsNote.textContent = "No supported skills were returned by the assessment API.";
@@ -469,7 +899,7 @@
     });
   }
 
-  function useJobSearchResult(index) {
+  async function useJobSearchResult(index, { autoSave = true } = {}) {
     const result = state.jobSearchResults[index];
     if (!result) return;
     elements.jobTitle.value = result.title || "";
@@ -477,6 +907,10 @@
     if (elements.jobCity) elements.jobCity.value = result.location || "";
     elements.jobSourceUrl.value = result.posting_url || "";
     elements.jobDescription.value = result.description || "";
+    if (autoSave) {
+      await submitJob(new Event("submit"));
+      return;
+    }
     const descriptionNotice = result.description
       ? "Selected posting loaded into the form. You can adjust details or save directly."
       : "Selected role title and company loaded. Review or save to auto-benchmark requirements.";
@@ -572,6 +1006,7 @@
       );
       setTone(elements.monitorState, "", "Not started");
       elements.checkMonitorButton.disabled = true;
+      if (elements.toggleMonitorButton) elements.toggleMonitorButton.disabled = true;
       return;
     }
     const stateText = text(monitor.state, "unknown");
@@ -582,8 +1017,12 @@
       factRow("Last assessed", formatDate(monitor.last_assessed_at)),
       factRow("Next action", nextAction)
     );
-    setTone(elements.monitorState, tone, stateText === "active" ? "Watching commits" : stateText);
+    setTone(elements.monitorState, tone, monitor.enabled ? (stateText === "active" ? "Watching commits" : stateText) : "Paused");
     elements.checkMonitorButton.disabled = !monitor.enabled;
+    if (elements.toggleMonitorButton) {
+      elements.toggleMonitorButton.disabled = false;
+      elements.toggleMonitorButton.textContent = monitor.enabled ? "Pause Monitor" : "Resume Monitor";
+    }
   }
 
   function renderEvent() {
@@ -611,7 +1050,55 @@
 
   function renderScope() {
     const assessment = state.snapshot?.assessment;
-    const paragraph = elements.scopeNotice.querySelector("p");
+    const insp = state.snapshot?.inspection || {};
+    const llm = state.snapshot?.llm || {};
+
+    if (elements.llmModeBadge) {
+      if (llm.available) {
+        const countLabel = typeof llm.interpreted_skill_count === "number" ? ` (${llm.interpreted_skill_count} skills)` : "";
+        setTone(elements.llmModeBadge, "ready", `✨ ${llm.mode || "OpenAI Interpretation"}${countLabel}`);
+        elements.llmModeBadge.title = llm.sent_to_provider || "";
+      } else {
+        setTone(elements.llmModeBadge, "", "Deterministic Engine");
+        elements.llmModeBadge.title = llm.reason || "Deterministic AST & pattern verification active.";
+      }
+    }
+
+    const inspectedFiles = Array.isArray(insp.files) ? insp.files : [];
+    const skippedFiles = Array.isArray(insp.skipped) ? insp.skipped : [];
+    if (elements.scopeDrawerSummaryTitle) {
+      elements.scopeDrawerSummaryTitle.textContent = `Repository Inspection Scope (${inspectedFiles.length} inspected, ${skippedFiles.length} skipped)`;
+    }
+    if (elements.scopeInspectedList) {
+      clear(elements.scopeInspectedList);
+      if (!inspectedFiles.length) {
+        elements.scopeInspectedList.append(make("li", "reqs-empty", "Connect a repository to view inspected files."));
+      } else {
+        inspectedFiles.forEach((f) => {
+          const li = document.createElement("li");
+          const pathNode = f.url ? externalLink(`📄 ${f.path}`, f.url, "evidence-file") : make("span", "", `📄 ${f.path}`);
+          li.append(pathNode);
+          const tag = f.context_only ? "context-only (0.32)" : `${f.size ?? 0} B`;
+          li.append(make("span", "", tag));
+          elements.scopeInspectedList.append(li);
+        });
+      }
+    }
+    if (elements.scopeSkippedList) {
+      clear(elements.scopeSkippedList);
+      if (!skippedFiles.length) {
+        elements.scopeSkippedList.append(make("li", "reqs-empty", "No files were skipped in this repository."));
+      } else {
+        skippedFiles.forEach((s) => {
+          const li = document.createElement("li");
+          li.append(make("span", "", s.path || "file"));
+          li.append(make("span", "", s.reason || "skipped"));
+          elements.scopeSkippedList.append(li);
+        });
+      }
+    }
+
+    const paragraph = elements.scopeNotice?.querySelector("p");
     if (!assessment || !paragraph) return;
     clear(paragraph);
     paragraph.append(make("strong", "", "How to read this dashboard: "));
@@ -619,6 +1106,7 @@
   }
 
   function renderAll() {
+    renderSetupWorkspace();
     renderContext();
     renderFit();
     renderRepositoryFacts();
@@ -629,6 +1117,14 @@
     renderGuidance();
     renderTelegram();
     renderScope();
+    renderCompareDashboard();
+    if (elements.navCompareBadge) {
+      elements.navCompareBadge.hidden = state.history.length < 2;
+      if (state.history.length >= 2) {
+        const diff = (state.history[0]?.fit_score ?? 0) - (state.history[1]?.fit_score ?? 0);
+        elements.navCompareBadge.textContent = Number.isFinite(diff) ? `${diff >= 0 ? "+" : ""}${diff}%` : "Δ";
+      }
+    }
     if (elements.disconnectRepositoryButton) {
       elements.disconnectRepositoryButton.hidden = !state.repository;
     }
@@ -1101,9 +1597,7 @@
       await loadSavedRepositories();
       setFeedback(elements.repositoryFeedback, payload.message || "Repository connected and assessed.", "success");
       toast(payload.message || "Repository connected and assessed.", "success");
-      if (elements.fitScore) {
-        elements.fitScore.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
+      switchView("result");
     } catch (error) {
       setFeedback(elements.repositoryFeedback, error.message, "error");
       setConnection("error", error.message);
@@ -1128,6 +1622,120 @@
       return;
     }
     await fetchAndDisplayUserRepos(profileMatch[1]);
+  }
+
+  async function validateRepository() {
+    const rawUrl = elements.repositoryUrl?.value.trim();
+    if (!rawUrl) {
+      setFeedback(elements.repositoryFeedback, "Enter a GitHub repository URL or @username to validate.", "error");
+      return;
+    }
+    setButtonLoading(elements.validateRepoButton, true, "Validating");
+    setFeedback(elements.repositoryFeedback, "");
+    try {
+      const payload = await api(`/api/github/validate?repository_url=${encodeURIComponent(rawUrl)}`);
+      state.validatedRepoMeta = payload.repository || null;
+      if (state.validatedRepoMeta?.repository_url && elements.repositoryUrl) {
+        elements.repositoryUrl.value = state.validatedRepoMeta.repository_url;
+      }
+      setFeedback(
+        elements.repositoryFeedback,
+        `Validated ${state.validatedRepoMeta?.full_name || "repository"} (${state.validatedRepoMeta?.default_branch || "main"} · ${shortSha(state.validatedRepoMeta?.commit_sha)}). Ready to start analysis.`,
+        "success"
+      );
+      renderAll();
+      toast(`Validated ${state.validatedRepoMeta?.full_name || "repository"}.`, "success");
+    } catch (error) {
+      setFeedback(elements.repositoryFeedback, error.message, "error");
+      toast(error.message, "error");
+    } finally {
+      setButtonLoading(elements.validateRepoButton, false);
+    }
+  }
+
+  async function reanalyzeRepository() {
+    if (!state.repository?.id) return;
+    setButtonLoading(elements.reanalyzeButton, true, "Scanning");
+    try {
+      const payload = await api(`/api/repositories/${state.repository.id}/scan`, { method: "POST" });
+      await loadOverview(state.repository.id);
+      toast(payload.message || "Manual reanalysis completed.", payload.created_snapshot ? "success" : "info");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      setButtonLoading(elements.reanalyzeButton, false);
+    }
+  }
+
+  async function toggleMonitor() {
+    if (!state.repository?.id) return;
+    const monitor = state.monitor?.monitor || state.monitor;
+    const nextEnabled = !(monitor?.enabled ?? true);
+    setButtonLoading(elements.toggleMonitorButton, true, nextEnabled ? "Resuming" : "Pausing");
+    try {
+      state.monitor = await api(`/api/repositories/${state.repository.id}/monitor`, {
+        method: "PUT",
+        body: { enabled: nextEnabled },
+      });
+      renderMonitor();
+      toast(nextEnabled ? "Commit monitoring resumed." : "Commit monitoring paused.");
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      setButtonLoading(elements.toggleMonitorButton, false);
+      renderMonitor();
+    }
+  }
+
+  async function updateSelectedJob() {
+    if (!state.job?.id) return;
+    const title = elements.jobTitle.value.trim();
+    const company = elements.jobCompany.value.trim();
+    const city = elements.jobCity ? elements.jobCity.value.trim() : "";
+    const sourceUrl = elements.jobSourceUrl.value.trim();
+    const description = elements.jobDescription.value.trim();
+    if (!title) {
+      setFeedback(elements.jobFeedback, "Enter a role title.", "error");
+      return;
+    }
+    setButtonLoading(elements.updateJobButton, true, "Updating");
+    try {
+      const body = { title, description };
+      if (company) body.company = company;
+      if (city) body.city = city;
+      if (sourceUrl) body.source_url = sourceUrl;
+      const payload = await api(`/api/jobs/${state.job.id}`, { method: "PUT", body });
+      state.job = payload.job;
+      await loadSavedJobs();
+      setFeedback(elements.jobFeedback, payload.warning || `Updated ${payload.job.title} (${payload.job.skills?.length || 0} requirements).`, payload.warning ? "error" : "success");
+      renderAll();
+      toast("Selected job updated.", "success");
+    } catch (error) {
+      setFeedback(elements.jobFeedback, error.message, "error");
+      toast(error.message, "error");
+    } finally {
+      setButtonLoading(elements.updateJobButton, false);
+    }
+  }
+
+  async function fetchJobUrlOnly() {
+    const sourceUrl = elements.jobSourceUrl?.value.trim();
+    if (!sourceUrl) {
+      setFeedback(elements.jobFeedback, "Enter a public job posting URL first.", "error");
+      return;
+    }
+    setButtonLoading(elements.fetchJobUrlButton, true, "Fetching");
+    try {
+      const fetched = await api("/api/jobs/fetch", { method: "POST", body: { source_url: sourceUrl } });
+      elements.jobDescription.value = fetched.description || "";
+      setFeedback(elements.jobFeedback, "Fetched readable text from URL. Review and save.", "success");
+      toast("Job description text fetched.", "success");
+    } catch (error) {
+      setFeedback(elements.jobFeedback, error.message, "error");
+      toast(error.message, "error");
+    } finally {
+      setButtonLoading(elements.fetchJobUrlButton, false);
+    }
   }
 
   async function checkMonitor() {
@@ -1238,9 +1846,278 @@
     return entries.map((entry) => `${entry.path || "file"}:${entry.start_line || "?"}-${entry.end_line || "?"}`).join("\n");
   }
 
-  async function showComparison(currentId, previousId) {
+  function formatEvidenceShort(entries) {
+    if (!Array.isArray(entries) || !entries.length) return "No evidence in scope";
+    const files = [...new Set(entries.map((e) => e.path).filter(Boolean))];
+    return files.slice(0, 2).join(", ") + (files.length > 2 ? ` (+${files.length - 2})` : "");
+  }
+
+  function renderCompareBars(container, rows, mode) {
+    if (!container) return;
+    clear(container);
+    if (!Array.isArray(rows) || !rows.length) {
+      container.append(make("p", "history-empty", "Connect a job and repository to view skill bars."));
+      return;
+    }
+    rows.forEach((row) => {
+      const statusCode = mode === "before" ? row.before_status_code : row.after_status_code;
+      const statusLabel = mode === "before" ? row.before_status : row.after_status;
+      const sc = statusClass(statusCode, statusLabel);
+      const barRow = make("div", "compare-bar-row");
+      barRow.append(make("span", "compare-bar-skill", text(row.skill, "Skill")));
+      barRow.append(make("span", "compare-bar-req", text(row.requirement_type, "required")));
+      const track = make("div", "compare-bar-track");
+      const wrap = make("div", "compare-bar-fill-wrap");
+      wrap.append(make("div", `compare-bar-fill compare-bar-fill--${sc}`));
+      track.append(wrap);
+      const shortStatus = sc === "demonstrated" ? "Demonstrated" : sc === "partial" ? "Partial" : "Not in scope";
+      track.append(make("span", "compare-bar-label", shortStatus));
+      barRow.append(track);
+      container.append(barRow);
+    });
+  }
+
+  function renderCompareDashboard() {
+    if (!elements.compareRepoName) return;
+    if (state.repository) {
+      elements.compareRepoName.textContent = `${state.repository.owner}/${state.repository.name}`;
+      if (elements.compareRepoBadges) {
+        clear(elements.compareRepoBadges);
+        const insp = state.snapshot?.inspection || {};
+        elements.compareRepoBadges.append(
+          make("span", "meta-pill", `Branch: ${state.repository.default_branch || "main"}`),
+          make("span", "meta-pill", `Commit: ${shortSha(state.repository.latest_known_sha)}`),
+          make("span", "meta-pill", `${insp.inspected_file_count ?? 0} files inspected`)
+        );
+      }
+    } else {
+      elements.compareRepoName.textContent = "No repository connected";
+      if (elements.compareRepoBadges) {
+        clear(elements.compareRepoBadges);
+        elements.compareRepoBadges.append(make("span", "meta-pill", "Connect a repository in Setup"));
+      }
+    }
+
+    if (elements.compareJobTitle) {
+      elements.compareJobTitle.textContent = state.job ? state.job.title : "No job selected";
+      elements.compareJobCompany.textContent = state.job ? state.job.company || "Benchmark" : "—";
+    }
+
+    // Populate snapshot pair selector
+    if (elements.compareSnapshotSelect) {
+      const currentVal = elements.compareSnapshotSelect.value;
+      clear(elements.compareSnapshotSelect);
+      if (state.history.length >= 2) {
+        for (let i = 0; i < state.history.length - 1; i++) {
+          const cur = state.history[i];
+          const prev = state.history[i + 1];
+          const opt = make(
+            "option",
+            "",
+            `${shortSha(cur.commit_sha)} (${cur.fit_score ?? "—"}%) vs. ${shortSha(prev.commit_sha)} (${prev.fit_score ?? "—"}%)`
+          );
+          opt.value = `${cur.id}:${prev.id}`;
+          elements.compareSnapshotSelect.append(opt);
+        }
+        if (currentVal && [...elements.compareSnapshotSelect.options].some((o) => o.value === currentVal)) {
+          elements.compareSnapshotSelect.value = currentVal;
+        }
+      } else {
+        const opt = make("option", "", "Single snapshot (Baseline vs. Current)");
+        opt.value = "";
+        elements.compareSnapshotSelect.append(opt);
+      }
+    }
+
+    // Build rows from either state.lastComparison or current snapshot assessment
+    const comp = state.lastComparison;
+    const currentAssess = state.snapshot?.assessment;
+    let rows = [];
+    let strengths = [];
+    let gaps = [];
+    let beforeScore = null;
+    let afterScore = null;
+
+    if (comp && Array.isArray(comp.requirement_rows)) {
+      rows = comp.requirement_rows;
+      strengths = comp.strengths || [];
+      gaps = comp.top_gaps || [];
+      beforeScore = comp.previous_score;
+      afterScore = comp.current_score;
+      if (elements.compareBeforeSub) {
+        elements.compareBeforeSub.textContent = `Commit ${shortSha(comp.previous_snapshot?.commit_sha)} (${formatDate(comp.previous_snapshot?.assessed_at)})`;
+      }
+      if (elements.compareAfterSub) {
+        elements.compareAfterSub.textContent = `Commit ${shortSha(comp.current_snapshot?.commit_sha)} (${formatDate(comp.current_snapshot?.assessed_at)})`;
+      }
+      if (elements.compareDeltaBadge) {
+        const d = comp.score_delta;
+        setTone(
+          elements.compareDeltaBadge,
+          d > 0 ? "ready" : d < 0 ? "warning" : "working",
+          d !== null && d !== undefined ? `Proof Delta ${d >= 0 ? "+" : ""}${d}%` : "Compared"
+        );
+      }
+    } else if (currentAssess && Array.isArray(currentAssess.skill_assessments)) {
+      beforeScore = null;
+      afterScore = currentAssess.fit_score?.value ?? null;
+      if (elements.compareBeforeSub) {
+        elements.compareBeforeSub.textContent = "Baseline unavailable (single commit snapshot)";
+      }
+      if (elements.compareAfterSub) {
+        elements.compareAfterSub.textContent = `Commit ${shortSha(state.snapshot?.commit_sha)} (Initial scan)`;
+      }
+      if (elements.compareDeltaBadge) {
+        setTone(elements.compareDeltaBadge, "working", "Baseline unavailable");
+      }
+      rows = currentAssess.skill_assessments.map((s) => ({
+        skill_key: s.skill_key,
+        skill: s.skill,
+        requirement_type: s.requirement_type || "required",
+        before_status: "Baseline unavailable",
+        before_status_code: "awaiting",
+        after_status: s.status,
+        after_status_code: s.status_code,
+        status_changed: false,
+        before_evidence: [],
+        after_evidence: s.evidence || [],
+        evidence_added: [],
+        evidence_removed: [],
+        claim_boundary: s.claim_boundary,
+        next_evidence_contract: s.next_evidence_contract,
+      }));
+      strengths = rows
+        .filter((r) => r.after_status_code === "demonstrated")
+        .map((r) => ({
+          skill_key: r.skill_key,
+          skill: r.skill,
+          file_count: new Set((r.after_evidence || []).map((e) => e.path)).size,
+        }));
+      gaps = rows
+        .filter((r) => r.after_status_code !== "demonstrated")
+        .map((r) => ({
+          skill_key: r.skill_key,
+          skill: r.skill,
+          status: r.after_status,
+          task: r.next_evidence_contract?.task || "",
+        }));
+    }
+
+    if (elements.compareBeforeScore) {
+      elements.compareBeforeScore.textContent = Number.isFinite(beforeScore) ? `${beforeScore}%` : "N/A";
+    }
+    if (elements.compareAfterScore) {
+      elements.compareAfterScore.textContent = Number.isFinite(afterScore) ? `${afterScore}%` : "—";
+    }
+
+    renderCompareBars(elements.compareBeforeBars, rows, "before");
+    renderCompareBars(elements.compareAfterBars, rows, "after");
+
+    // Distribution
+    const total = rows.length;
+    const demoCount = rows.filter((r) => r.after_status_code === "demonstrated").length;
+    const partCount = rows.filter((r) => r.after_status_code === "partially_demonstrated").length;
+    const missCount = Math.max(0, total - demoCount - partCount);
+    const pct = (n) => (total ? Math.round((n / total) * 100) : 0);
+    if (elements.distSegDemo) elements.distSegDemo.style.width = `${pct(demoCount)}%`;
+    if (elements.distSegPart) elements.distSegPart.style.width = `${pct(partCount)}%`;
+    if (elements.distSegMiss) elements.distSegMiss.style.width = `${total ? pct(missCount) : 100}%`;
+    if (elements.distLabelDemo) elements.distLabelDemo.textContent = `${demoCount} (${pct(demoCount)}%)`;
+    if (elements.distLabelPart) elements.distLabelPart.textContent = `${partCount} (${pct(partCount)}%)`;
+    if (elements.distLabelMiss) elements.distLabelMiss.textContent = `${missCount} (${pct(missCount)}%)`;
+
+    // Top Skill Gaps
+    if (elements.compareTopGaps) {
+      clear(elements.compareTopGaps);
+      if (!gaps.length) {
+        elements.compareTopGaps.append(make("p", "history-empty", total ? "All tracked requirements are demonstrated!" : "No gaps computed yet."));
+      } else {
+        gaps.forEach((g) => {
+          const div = make("div", "analytics-item");
+          div.append(make("strong", "", text(g.skill, "Gap")));
+          div.append(make("span", "", text(g.task || g.status, "Not demonstrated in this inspected scope")));
+          elements.compareTopGaps.append(div);
+        });
+      }
+    }
+
+    // Strengths
+    if (elements.compareStrengths) {
+      clear(elements.compareStrengths);
+      if (!strengths.length) {
+        elements.compareStrengths.append(make("p", "history-empty", "No demonstrated strengths recorded yet."));
+      } else {
+        strengths.forEach((s) => {
+          const div = make("div", "analytics-item");
+          div.append(make("strong", "", `✓ ${text(s.skill, "Skill")}`));
+          div.append(make("span", "", `Verified across ${s.file_count || 1} inspected file${s.file_count === 1 ? "" : "s"}`));
+          elements.compareStrengths.append(div);
+        });
+      }
+    }
+
+    // Requirements Comparison Table
+    if (elements.compareTableBody) {
+      clear(elements.compareTableBody);
+      const q = (state.compareTableSearch || "").trim().toLowerCase();
+      const f = state.compareTableFilter || "all";
+      const filteredRows = rows.filter((r) => {
+        if (f === "changed" && !r.status_changed && !(r.evidence_added?.length || r.evidence_removed?.length)) return false;
+        if (f !== "all" && f !== "changed" && r.after_status_code !== f) return false;
+        if (!q) return true;
+        return `${r.skill || ""} ${r.before_status || ""} ${r.after_status || ""}`.toLowerCase().includes(q);
+      });
+
+      if (!filteredRows.length) {
+        const tr = document.createElement("tr");
+        const td = make("td", "history-empty", rows.length ? "No requirements match the filter." : "Connect a job and repository to view the comparison matrix.");
+        td.colSpan = 7;
+        tr.append(td);
+        elements.compareTableBody.append(tr);
+      } else {
+        filteredRows.forEach((r, idx) => {
+          const tr = document.createElement("tr");
+          tr.append(make("td", "", String(idx + 1)));
+          tr.append(make("td", "", text(r.skill, "Requirement")));
+          tr.append(make("td", "", formatEvidenceShort(r.before_evidence)));
+          tr.append(make("td", "", formatEvidenceShort(r.after_evidence)));
+          const sc = statusClass(r.after_status_code, r.after_status);
+          const statusTd = document.createElement("td");
+          statusTd.append(make("span", `status-chip status-chip--${sc}`, text(r.after_status, "Unreported")));
+          tr.append(statusTd);
+
+          const deltaTd = document.createElement("td");
+          const addedCount = (r.evidence_added || []).length;
+          if (r.status_changed) {
+            deltaTd.append(make("span", "delta-pill delta-pill--up", `↑ ${r.before_status_code === "not_demonstrated" ? "New Proof" : "Updated"}`));
+          } else if (addedCount > 0) {
+            deltaTd.append(make("span", "delta-pill delta-pill--up", `+${addedCount} file${addedCount === 1 ? "" : "s"}`));
+          } else {
+            deltaTd.append(make("span", "delta-pill delta-pill--same", "Unchanged"));
+          }
+          tr.append(deltaTd);
+
+          const actionTd = document.createElement("td");
+          const viewBtn = make("button", "view-evidence-btn", "View");
+          viewBtn.type = "button";
+          viewBtn.addEventListener("click", () => {
+            state.selectedSkillKey = r.skill_key;
+            state.selectedEvidenceIndex = 0;
+            switchView("result");
+            renderSkills();
+          });
+          actionTd.append(viewBtn);
+          tr.append(actionTd);
+          elements.compareTableBody.append(tr);
+        });
+      }
+    }
+  }
+
+  async function showComparison(currentId, previousId, { stayInView = false } = {}) {
     try {
       const comparison = await api(`/api/assessments/${currentId}/compare/${previousId}`);
+      state.lastComparison = comparison;
       clear(elements.comparisonMeta);
       clear(elements.comparisonGrid);
       elements.comparisonPanel.hidden = false;
@@ -1249,7 +2126,7 @@
         make("span", "", `after ${shortSha(comparison.current_snapshot?.commit_sha)}`)
       );
       if (comparison.score_delta !== null && comparison.score_delta !== undefined) {
-        elements.comparisonMeta.append(make("span", "", `fit score ${comparison.score_delta >= 0 ? "+" : ""}${comparison.score_delta}`));
+        elements.comparisonMeta.append(make("span", "", `fit score ${comparison.score_delta >= 0 ? "+" : ""}${comparison.score_delta}%`));
       }
       const changes = Array.isArray(comparison.skill_changes) ? comparison.skill_changes : [];
       if (!changes.length) {
@@ -1277,7 +2154,10 @@
           elements.comparisonGrid.append(item);
         });
       }
-      elements.comparisonPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      renderCompareDashboard();
+      if (!stayInView) {
+        switchView("compare");
+      }
     } catch (error) {
       toast(error.message, "error");
     }
@@ -1366,12 +2246,146 @@
     showComparison(target.dataset.currentSnapshot, target.dataset.previousSnapshot);
   });
   elements.viewComparisonButton.addEventListener("click", () => {
-    if (state.history.length >= 2) showComparison(state.history[0].id, state.history[1].id);
+    if (state.history.length >= 2) {
+      showComparison(state.history[0].id, state.history[1].id);
+    } else {
+      switchView("compare");
+    }
   });
   elements.telegramPairButton.addEventListener("click", pairTelegram);
   elements.closeComparisonButton.addEventListener("click", () => {
-    elements.comparisonPanel.hidden = true;
+    state.compareTableSearch = "";
+    state.compareTableFilter = "all";
+    if (elements.compareTableSearch) elements.compareTableSearch.value = "";
+    if (elements.compareTableFilter) elements.compareTableFilter.value = "all";
+    renderCompareDashboard();
   });
+
+  // Top 3-Screen Navigation
+  [elements.navTabSetup, elements.navTabResult, elements.navTabCompare].forEach((btn) => {
+    if (!btn) return;
+    btn.addEventListener("click", () => switchView(btn.dataset.navView));
+  });
+  if (elements.brandHomeLink) {
+    elements.brandHomeLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      switchView("setup");
+    });
+  }
+
+  // Role Category Filter Pills
+  if (elements.roleCategoryPills) {
+    elements.roleCategoryPills.addEventListener("click", (event) => {
+      const btn = event.target instanceof Element ? event.target.closest("button[data-category]") : null;
+      if (!btn) return;
+      state.roleCategory = btn.dataset.category || "all";
+      elements.roleCategoryPills.querySelectorAll(".category-pill").forEach((el) => {
+        el.classList.toggle("is-active", el === btn);
+      });
+      renderSetupWorkspace();
+    });
+  }
+  if (elements.jobSearchQuery) {
+    elements.jobSearchQuery.addEventListener("input", () => renderSetupWorkspace());
+  }
+
+  // Custom / Edit Job Form Drawer Controls
+  if (elements.toggleCustomJobButton) {
+    elements.toggleCustomJobButton.addEventListener("click", () => {
+      if (elements.customJobDrawer) {
+        elements.customJobDrawer.hidden = !elements.customJobDrawer.hidden;
+      }
+    });
+  }
+  if (elements.closeCustomJobButton) {
+    elements.closeCustomJobButton.addEventListener("click", () => {
+      if (elements.customJobDrawer) elements.customJobDrawer.hidden = true;
+    });
+  }
+  if (elements.newJobModeButton) {
+    elements.newJobModeButton.addEventListener("click", () => {
+      if (elements.savedJobsSelect) elements.savedJobsSelect.value = "";
+      state.job = null;
+      elements.jobTitle.value = "";
+      elements.jobCompany.value = "";
+      if (elements.jobCity) elements.jobCity.value = "";
+      elements.jobSourceUrl.value = "";
+      elements.jobDescription.value = "";
+      renderAll();
+    });
+  }
+  if (elements.updateJobButton) {
+    elements.updateJobButton.addEventListener("click", updateSelectedJob);
+  }
+  if (elements.fetchJobUrlButton) {
+    elements.fetchJobUrlButton.addEventListener("click", fetchJobUrlOnly);
+  }
+  if (elements.validateRepoButton) {
+    elements.validateRepoButton.addEventListener("click", validateRepository);
+  }
+
+  // Result View Controls: KPI Status Filter Cards, Search, Status Select, Reanalyze, Monitor Toggle
+  [elements.kpiCardDemonstrated, elements.kpiCardPartial, elements.kpiCardMissing, elements.kpiCardTotal].forEach((card) => {
+    if (!card) return;
+    card.addEventListener("click", () => {
+      const filter = card.dataset.statusFilter || "all";
+      state.skillFilterStatus = filter;
+      if (elements.skillFilterStatus) elements.skillFilterStatus.value = filter;
+      [elements.kpiCardDemonstrated, elements.kpiCardPartial, elements.kpiCardMissing, elements.kpiCardTotal].forEach((c) => {
+        if (c) c.classList.toggle("is-active", c === card);
+      });
+      renderSkills();
+    });
+  });
+  if (elements.skillFilterSearch) {
+    elements.skillFilterSearch.addEventListener("input", () => {
+      state.skillFilterSearch = elements.skillFilterSearch.value;
+      renderSkills();
+    });
+  }
+  if (elements.skillFilterStatus) {
+    elements.skillFilterStatus.addEventListener("change", () => {
+      state.skillFilterStatus = elements.skillFilterStatus.value || "all";
+      renderSkills();
+    });
+  }
+  if (elements.reanalyzeButton) {
+    elements.reanalyzeButton.addEventListener("click", reanalyzeRepository);
+  }
+  if (elements.toggleMonitorButton) {
+    elements.toggleMonitorButton.addEventListener("click", toggleMonitor);
+  }
+  if (elements.toggleScopeDrawerButton) {
+    elements.toggleScopeDrawerButton.addEventListener("click", () => {
+      if (elements.scopeFilesDrawer) {
+        elements.scopeFilesDrawer.open = !elements.scopeFilesDrawer.open;
+        elements.scopeFilesDrawer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    });
+  }
+
+  // Compare View Controls
+  if (elements.compareSnapshotSelect) {
+    elements.compareSnapshotSelect.addEventListener("change", () => {
+      const val = elements.compareSnapshotSelect.value;
+      if (val && val.includes(":")) {
+        const [curId, prevId] = val.split(":");
+        showComparison(curId, prevId, { stayInView: true });
+      }
+    });
+  }
+  if (elements.compareTableSearch) {
+    elements.compareTableSearch.addEventListener("input", () => {
+      state.compareTableSearch = elements.compareTableSearch.value;
+      renderCompareDashboard();
+    });
+  }
+  if (elements.compareTableFilter) {
+    elements.compareTableFilter.addEventListener("change", () => {
+      state.compareTableFilter = elements.compareTableFilter.value || "all";
+      renderCompareDashboard();
+    });
+  }
   window.addEventListener("beforeunload", () => {
     if (state.refreshTimer) window.clearInterval(state.refreshTimer);
   });

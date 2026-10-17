@@ -288,10 +288,10 @@ class SQLiteStore:
         return self._repository(row)
 
     def find_repositories_by_full_name(self, owner: str, name: str) -> list[dict[str, Any]]:
-        """Return all monitored repositories matching owner/name across all jobs."""
+        """Return all monitored repositories matching owner/name across all jobs, newest first."""
         with self._connection() as connection:
             rows = connection.execute(
-                "SELECT * FROM repositories WHERE owner = ? AND name = ? AND monitor_enabled = 1 ORDER BY id ASC",
+                "SELECT * FROM repositories WHERE owner = ? AND name = ? AND monitor_enabled = 1 ORDER BY id DESC",
                 (owner, name),
             ).fetchall()
         return [self._repository(row) or {} for row in rows]
@@ -375,7 +375,7 @@ class SQLiteStore:
     def monitored_repositories(self) -> list[dict[str, Any]]:
         with self._connection() as connection:
             rows = connection.execute(
-                "SELECT * FROM repositories WHERE monitor_enabled = 1 ORDER BY id ASC"
+                "SELECT * FROM repositories WHERE monitor_enabled = 1 ORDER BY id DESC"
             ).fetchall()
         return [self._repository(row) or {} for row in rows]
 
@@ -390,6 +390,7 @@ class SQLiteStore:
         inspection: dict[str, Any],
         changed_files: list[dict[str, Any]],
         llm: dict[str, Any],
+        refresh_existing: bool = False,
     ) -> tuple[dict[str, Any], bool]:
         now = utc_now()
         with self._connection() as connection:
@@ -412,12 +413,28 @@ class SQLiteStore:
                     _dump(llm),
                 ),
             )
+            created = cursor.rowcount == 1
+            if not created and refresh_existing:
+                connection.execute(
+                    """
+                    UPDATE snapshots
+                    SET assessed_at = ?, assessment_json = ?, inspection_json = ?, llm_json = ?
+                    WHERE repository_id = ? AND commit_sha = ?
+                    """,
+                    (
+                        now,
+                        _dump(assessment),
+                        _dump(inspection),
+                        _dump(llm),
+                        repository_id,
+                        commit_sha,
+                    ),
+                )
             row = connection.execute(
                 "SELECT * FROM snapshots WHERE repository_id = ? AND commit_sha = ?",
                 (repository_id, commit_sha),
             ).fetchone()
-            created = cursor.rowcount == 1
-            if created:
+            if created or refresh_existing:
                 connection.execute(
                     """
                     UPDATE repositories
@@ -449,6 +466,30 @@ class SQLiteStore:
                 "SELECT * FROM snapshots WHERE repository_id = ? ORDER BY id DESC", (repository_id,)
             ).fetchall()
         return [self._snapshot(row) or {} for row in rows]
+
+    def get_snapshot_by_sha(self, repository_id: int, commit_sha: str) -> dict[str, Any] | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM snapshots WHERE repository_id = ? AND commit_sha = ? LIMIT 1",
+                (repository_id, commit_sha),
+            ).fetchone()
+        return self._snapshot(row)
+
+    def previous_snapshot_for(self, repository_id: int, current_snapshot_id: int) -> dict[str, Any] | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM snapshots WHERE repository_id = ? AND id < ? ORDER BY id DESC LIMIT 1",
+                (repository_id, current_snapshot_id),
+            ).fetchone()
+        return self._snapshot(row)
+
+    def latest_repository_id_for_full_name(self, owner: str, name: str) -> int | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT id FROM repositories WHERE owner = ? AND name = ? AND monitor_enabled = 1 ORDER BY id DESC LIMIT 1",
+                (owner, name),
+            ).fetchone()
+        return int(row["id"]) if row else None
 
     def record_event(
         self,
@@ -572,6 +613,22 @@ class SQLiteStore:
             if row is None:
                 return None
             subscription_id = int(row["id"])
+            repository_id = int(row["repository_id"])
+            repo = connection.execute(
+                "SELECT owner, name FROM repositories WHERE id = ?", (repository_id,)
+            ).fetchone()
+            now_ts = utc_now()
+            if repo:
+                connection.execute(
+                    """
+                    UPDATE telegram_subscriptions
+                    SET active = 0, updated_at = ?
+                    WHERE repository_id IN (
+                        SELECT id FROM repositories WHERE owner = ? AND name = ? AND id != ?
+                    )
+                    """,
+                    (now_ts, repo["owner"], repo["name"], repository_id),
+                )
             connection.execute(
                 """
                 UPDATE telegram_subscriptions
@@ -579,7 +636,7 @@ class SQLiteStore:
                     last_error_message = NULL, updated_at = ?
                 WHERE id = ?
                 """,
-                (chat_id, utc_now(), subscription_id),
+                (chat_id, now_ts, subscription_id),
             )
             updated = connection.execute(
                 "SELECT * FROM telegram_subscriptions WHERE id = ?", (subscription_id,)
@@ -600,10 +657,55 @@ class SQLiteStore:
         return cursor.rowcount > 0
 
     def claim_telegram_delivery(
-        self, *, subscription_id: int, snapshot_id: int, notification_type: str
+        self,
+        *,
+        subscription_id: int,
+        snapshot_id: int,
+        notification_type: str,
+        chat_id: str | None = None,
+        owner: str | None = None,
+        name: str | None = None,
+        commit_sha: str | None = None,
     ) -> bool:
         now = utc_now()
         with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            if chat_id and owner and name and commit_sha:
+                already_claimed = connection.execute(
+                    """
+                    SELECT td.id FROM telegram_deliveries td
+                    JOIN telegram_subscriptions ts ON td.subscription_id = ts.id
+                    JOIN snapshots s ON td.snapshot_id = s.id
+                    JOIN repositories r ON s.repository_id = r.id
+                    WHERE ts.chat_id = ? AND r.owner = ? AND r.name = ? AND s.commit_sha = ?
+                      AND td.notification_type = ? AND td.status IN ('pending', 'sent')
+                    LIMIT 1
+                    """,
+                    (chat_id, owner, name, commit_sha, notification_type),
+                ).fetchone()
+                if already_claimed is not None:
+                    return False
+
+            existing = connection.execute(
+                """
+                SELECT status FROM telegram_deliveries
+                WHERE subscription_id = ? AND snapshot_id = ? AND notification_type = ?
+                """,
+                (subscription_id, snapshot_id, notification_type),
+            ).fetchone()
+            if existing is not None:
+                if existing["status"] == "failed":
+                    cursor = connection.execute(
+                        """
+                        UPDATE telegram_deliveries
+                        SET status = 'pending', error_message = NULL, updated_at = ?
+                        WHERE subscription_id = ? AND snapshot_id = ? AND notification_type = ? AND status = 'failed'
+                        """,
+                        (now, subscription_id, snapshot_id, notification_type),
+                    )
+                    return cursor.rowcount == 1
+                return False
+
             cursor = connection.execute(
                 """
                 INSERT OR IGNORE INTO telegram_deliveries
